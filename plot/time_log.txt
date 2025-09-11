@@ -1,6 +1,0 @@
-[solve_z] elapsed: 12 ms
-[solve_y] elapsed: 13 ms
-[solve_x] elapsed: 32 ms
-[solve_z] elapsed: 12 ms
-[solve_y] elapsed: 13 ms
-[solve_x] elapsed: 31 ms

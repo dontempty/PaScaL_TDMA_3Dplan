@@ -47,7 +47,7 @@ void GlobalParams::load(const std::string& filename) {
         param[key] = value;
     }
 
-    // 이제 모든 형식이 param에 들어가 있음
+    // 이제 모든 형식이 param에 들어가 있음 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     nx        = std::stoi(param.at("nx"));
     ny        = std::stoi(param.at("ny"));
     nz        = std::stoi(param.at("nz"));
@@ -80,13 +80,13 @@ void GlobalParams::load(const std::string& filename) {
 
     // 시간
     Nt = static_cast<int>(std::round(Tmax / dt));
-    double eps = 1e-13;
-    bool is_exact = std::fabs(Nt - std::round(Nt)) < eps * std::max(1.0, std::fabs(Nt));
-    if (is_exact) {
-        std::cout << "Exact division: Nt = " << Nt << std::endl;
-    } else {
-        std::cout << "Not an exact integer result." << std::endl;
-    }
+    // double eps = 1e-13;
+    // bool is_exact = std::fabs(Nt - std::round(Nt)) < eps * std::max(1.0, std::fabs(Nt));
+    // if (is_exact) {
+    //     std::cout << "Exact division: Nt = " << Nt << std::endl;
+    // } else {
+    //     std::cout << "Not an exact integer result." << std::endl;
+    // }
 }
 
 // GlobalParams params;

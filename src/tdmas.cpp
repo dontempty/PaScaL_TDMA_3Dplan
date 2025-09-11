@@ -1,5 +1,6 @@
 #include <vector>
 #include <iostream>
+#include <cmath>
 #include "tdmas.hpp"
 
 void tdma_single(std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d, int n1) {
@@ -55,45 +56,87 @@ void tdma_cycl_single(std::vector<double>& a, std::vector<double>& b, std::vecto
 }
 
 void tdma_many(
-    std::vector<double> &a,
-    std::vector<double> &b,
-    std::vector<double> &c,
-    std::vector<double> &d,
-    int n1, int n2) {
+    std::vector<double> &A,
+    std::vector<double> &B,
+    std::vector<double> &C,
+    std::vector<double> &D,
+    int n1, int n2) { 
     // n1: n_sys
     // n2: n_row
-        
-    std::vector<double> r(n1);
-    int idx;
-    int i, j;
 
-    // Forward elimination
-    for (j = 0; j < n1; ++j) {
-        idx = j*n2 + 0;
+    double* __restrict a0 = A.data();
+    double* __restrict b0 = B.data();
+    double* __restrict c0 = C.data();
+    double* __restrict d0 = D.data();
+    
+    // #pragma omp parallel for schedule(static)
+    for (int j=0; j<n1; ++j) {
+        int idx = j*n2;
 
-        d[idx] /= b[idx];
-        c[idx] /= b[idx];
-    }
+        double* __restrict a = a0 + idx;
+        double* __restrict b = b0 + idx;
+        double* __restrict c = c0 + idx;
+        double* __restrict d = d0 + idx;
 
-    for (j = 0; j < n1; ++j) {
-        // r[j] = 1.0 / (b[idx] - a[idx] * c[idx - 1]);
-        for (i = 1; i < n2; ++i) {
-            idx = j*n2 + i;
-            double r = 1.0 / (b[idx] - a[idx] * c[idx - 1]);
-            d[idx] = r * (d[idx] - a[idx] * d[idx - 1]);
-            c[idx] = r * c[idx];
+        double r_inv0 = 1.0 / b[0];
+        d[0] *= r_inv0;
+        c[0] *= r_inv0;
+
+        // forward
+        for (int i=1; i<n2; ++i) {
+            double denom  = std::fma(-a[i], c[i-1], b[i]);
+            double r_inv = 1.0 / denom;
+            d[i] = r_inv * (d[i] - a[i] * d[i-1]);
+            c[i] = r_inv * c[i];
         }
-    }
 
-    // Back substitution
-    for (j = 0; j < n1; ++j) {
-        for (i = n2-2; i >= 0; --i) {
-            idx = j*n2 + i;
-
-            d[idx] = d[idx] - c[idx] * d[idx + 1];
+        // Backward
+        for (int i=n2-2; i>= 0; --i) {
+            d[i] -= c[i] * d[i + 1];
         }
     }
 }
+
+// void tdma_many(
+//     std::vector<double> &a,
+//     std::vector<double> &b,
+//     std::vector<double> &c,
+//     std::vector<double> &d,
+//     int n1, int n2) {
+//     // n1: n_sys
+//     // n2: n_row
+        
+//     std::vector<double> r(n1);
+//     int idx;
+//     int i, j;
+
+//     // Forward elimination
+//     for (j = 0; j < n1; ++j) {
+//         idx = j*n2 + 0;
+
+//         d[idx] /= b[idx];
+//         c[idx] /= b[idx];
+//     }
+
+//     for (j = 0; j < n1; ++j) {
+//         // r[j] = 1.0 / (b[idx] - a[idx] * c[idx - 1]);
+//         for (i = 1; i < n2; ++i) {
+//             idx = j*n2 + i;
+//             double r = 1.0 / (b[idx] - a[idx] * c[idx - 1]);
+//             d[idx] = r * (d[idx] - a[idx] * d[idx - 1]);
+//             c[idx] = r * c[idx];
+//         }
+//     }
+
+//     // Back substitution
+//     for (j = 0; j < n1; ++j) {
+//         for (i = n2-2; i >= 0; --i) {
+//             idx = j*n2 + i;
+
+//             d[idx] = d[idx] - c[idx] * d[idx + 1];
+//         }
+//     }
+// }
 
 void tdma_cycl_many(
     std::vector<double> &a,

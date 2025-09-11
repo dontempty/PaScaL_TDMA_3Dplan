@@ -1,6 +1,6 @@
 // mpi_subdomain.cpp
 #include "mpi_subdomain.hpp"
-#include "../scr/para_range.hpp"
+#include "../src/para_range.hpp"
 #include <cmath>
 #include "index.hpp"
 #include "iostream"
@@ -286,8 +286,7 @@ void MPISubdomain::mesh(const GlobalParams& params,
     }
 }
 
-void MPISubdomain::initialization(std::vector<double>& theta,
-                                  const GlobalParams& params) {
+void MPISubdomain::initialization(std::vector<double>& theta) {
     
     int idx;
     int nx1 = nx_sub + 1;
@@ -307,16 +306,13 @@ void MPISubdomain::initialization(std::vector<double>& theta,
     }
 }
 
-void MPISubdomain::boundary(std::vector<double>& theta,
-                            const GlobalParams& params,
-                            int rankx, int npx,
-                            int ranky, int npy,
-                            int rankz, int npz) {
+void MPISubdomain::boundary(std::vector<double>& theta) {
 
     int nx1 = nx_sub + 1;
     int ny1 = ny_sub + 1;
     int nz1 = nz_sub + 1;
-    int ij, jk, ki, ik;
+    int ij, jk, ik;
+    // int ij, jk, ki;    // fixed
     int ijk;
 
     // X
@@ -332,7 +328,7 @@ void MPISubdomain::boundary(std::vector<double>& theta,
         }
     }
 
-    // // Y (fixed)
+    // Y (fixed)
     for (int k=0; k<nz1; ++k) {
         for (int i=0; i<nx1; ++i) {
             ik = idx_ik(i, k, nx1);

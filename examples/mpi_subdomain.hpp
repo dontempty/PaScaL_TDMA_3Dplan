@@ -50,15 +50,10 @@ public:
               int npx, int npy, int npz);
 
     // Initialize field in subdomain
-    void initialization(std::vector<double>& theta,
-                        const GlobalParams& params);
+    void initialization(std::vector<double>& theta);
 
     // Boundary extraction
-    void boundary(std::vector<double>& theta,
-                  const GlobalParams& params,
-                  int rankx, int npx,
-                  int ranky, int npy,
-                  int rankz, int npz);
+    void boundary(std::vector<double>& theta);
 
     // Subdomain sizes and offsets
     int nx_sub, ny_sub, nz_sub;

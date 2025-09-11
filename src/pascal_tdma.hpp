@@ -4,7 +4,7 @@
 class PaScaL_TDMA {
 public:
     struct ptdma_plan_single {
-        int ptdma_world;    // Single dimensional subcommunicator to assemble data for the reduced TDMA
+        MPI_Comm  ptdma_world;    // Single dimensional subcommunicator to assemble data for the reduced TDMA
         int n_row_rt;       // Number of rows of a reduced tridiagonal system after MPI_Gather
         
         int gather_rank;    // Destination rank of MPI_Igather
@@ -35,7 +35,7 @@ public:
                                 int n_row);
 
     struct ptdma_plan_many {
-        int ptdma_world;
+        MPI_Comm  ptdma_world;
         int n_sys_rt;
         int n_row_rt;
 
@@ -45,13 +45,15 @@ public:
         // ddtype_FS: A, B, C, D 계수들을 보내는 buffer
         // count_send: alltoall 에서 i 번째에 보내는 데이터 개수
         // displ_send: alltoall 에서 i 번째에 보내는 데이터 주소
-        std::vector<int> ddtype_Fs, count_send, displ_send;
+        std::vector<MPI_Datatype> ddtype_Fs;
+        std::vector<int> count_send, displ_send;
 
         // Recv. buffer related variables MPI_Ialltoallw 
         // ddtype_Bs: A, B, C, D 계수들을 받는 buffer
         // count_recv: alltoall 에서 i 번째로 부터 받는 데이터 개수
         // displ_recv: alltoall 에서 i 번째로 부터 받는 데이터 주소
-        std::vector<int> ddtype_Bs, count_recv, displ_recv;
+        std::vector<MPI_Datatype> ddtype_Bs;
+        std::vector<int> count_recv, displ_recv;
 
         // Coefficient arrays after reduction, a: lower, b: diagonal, c: upper, d: rhs.
         // The orginal dimension (m:n) is reduced to (m:2)
@@ -71,6 +73,11 @@ public:
     void PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
                                 std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
                                 int n_sys, int n_row);
+
+    void PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
+                                std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
+                                int n_sys, int n_row,
+                                std::vector<double>& time_list);
 
     void PaScaL_TDMA_many_solve_cycle(ptdma_plan_many& plan,
                                     std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,

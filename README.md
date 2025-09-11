@@ -1,8 +1,12 @@
 ## Compile
 
 ```
-cd examples_lab
-make clean
-make run
+make lib
+make example
+make all
+```
+
+```
+cd run
 
 ```

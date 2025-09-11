@@ -1,9 +1,9 @@
 #include <mpi.h>
-#include "global.hpp"         // params 생성
-#include "mpi_topology.hpp"   // topo 생성
-#include "mpi_subdomain.hpp"  // MPISubdomain sub; 그냥 extern 함
+#include "global.hpp"
+#include "mpi_topology.hpp"
+#include "mpi_subdomain.hpp"
 #include "solve_theta.hpp"
-#include "save.hpp"
+// #include "save.hpp"
 #include "gather_theta.hpp"
 
 #include <iostream>
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
   // x, y, z
   topo.init(
     { params.np_dim[0], params.np_dim[1], params.np_dim[2] },
-    { true, false, true }
+    { false, false, false }
   );
 
   topo.make();
@@ -56,42 +56,42 @@ int main(int argc, char** argv) {
   std::vector<double> theta((sub.nz_sub + 1) * (sub.ny_sub + 1) * (sub.nx_sub + 1), 0.0);
 
   // 9) 내부 값 초기화
-  sub.initialization(theta, params);
+  sub.initialization(theta);
   MPI_Barrier(MPI_COMM_WORLD);
 
   // 10) ghostcell 교환
   sub.ghostcellUpdate(theta, cx, cy, cz, params);
 
   // 11) bdy값 저장하기
-  sub.boundary(theta, params, rankx, npx, ranky, npy, rankz, npz);
+  sub.boundary(theta);
 
   // 12) 솔버 호출해서 실행하기
   solve_theta solver(params, topo, sub);
   solver.solve_theta_plan_single(theta);
 
   // 13) call error
-  double local_error=0;
-  double exact_value;
-  int ijk;
+  // double local_error=0;
+  // double exact_value;
+  // int ijk;
 
-  for (int k=1; k<(sub.nz_sub + 1)-1; ++k) {
-    for (int j=1; j<(sub.ny_sub + 1)-1; ++j) {
-      for (int i=1; i<(sub.nx_sub + 1)-1; ++i) {
-        ijk = k*(sub.nx_sub + 1)*(sub.ny_sub + 1) + j*(sub.nx_sub + 1) + i;
+  // for (int k=1; k<(sub.nz_sub + 1)-1; ++k) {
+  //   for (int j=1; j<(sub.ny_sub + 1)-1; ++j) {
+  //     for (int i=1; i<(sub.nx_sub + 1)-1; ++i) {
+  //       ijk = k*(sub.nx_sub + 1)*(sub.ny_sub + 1) + j*(sub.nx_sub + 1) + i;
 
-        exact_value = sin(Pi*sub.x_sub[i])*sin(Pi*sub.y_sub[j])*sin(Pi*sub.z_sub[k]) * exp(-3*Pi*Pi * params.Tmax) +
-                      cos(Pi*sub.x_sub[i])*cos(Pi*sub.y_sub[j])*cos(Pi*sub.z_sub[k]);
+  //       exact_value = sin(Pi*sub.x_sub[i])*sin(Pi*sub.y_sub[j])*sin(Pi*sub.z_sub[k]) * exp(-3*Pi*Pi * params.Tmax) +
+  //                     cos(Pi*sub.x_sub[i])*cos(Pi*sub.y_sub[j])*cos(Pi*sub.z_sub[k]);
 
-        local_error += pow(theta[ijk] - exact_value, 2);
-      }
-    }
-  }
+  //       local_error += pow(theta[ijk] - exact_value, 2);
+  //     }
+  //   }
+  // }
 
-  double global_error;
-  MPI_Allreduce(&local_error, &global_error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  if (myrank == 0) {
-      std::cout << "Global L2 error = " << std::sqrt(global_error / params.nx / params.ny / params.nz) << "\n";
-  }
+  // double global_error;
+  // MPI_Allreduce(&local_error, &global_error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  // if (myrank == 0) {
+  //     std::cout << "Global L2 error = " << std::sqrt(global_error / params.nx / params.ny / params.nz) << "\n";
+  // }
 
   // // 13) solution 하나로 합치기
   // std::vector<double> global_theta;
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   //   global_theta.assign((params.nx+1)*(params.ny+1)*(params.nz+1), -1.0);
   // }
   
-  // gather_theta(global_theta, theta, params, sub, topo, myrank);
+  // gather_theta(global_theta, theta, params, sub, myrank);
 
   // if (myrank==0) {
     
@@ -123,4 +123,4 @@ int main(int argc, char** argv) {
   sub.clean();
   topo.clean();
   MPI_Finalize();
-};
+}

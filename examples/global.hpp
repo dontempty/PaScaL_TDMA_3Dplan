@@ -28,6 +28,4 @@ public:
     std::array<int, 3> np_dim;
 };
 
-// extern GlobalParams params;
-
 #endif // GLOBAL_PARAMS_HPP
