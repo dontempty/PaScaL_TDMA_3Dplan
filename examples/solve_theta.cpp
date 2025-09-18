@@ -64,13 +64,11 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
     tdma_z.PaScaL_TDMA_plan_many_create(pz_many, sub.nx_sub-1, cz.myrank, cz.nprocs, cz.comm);
     std::vector<double> Azz((nz1-2)*(nx1-2)), Bzz((nz1-2)*(nx1-2)), Czz((nz1-2)*(nx1-2)), Dzz((nz1-2)*(nx1-2));
     
-    std::vector<double> rhs_x(nx1 * ny1 * nz1, 0.0);
-    std::vector<double> rhs_y(nx1 * ny1 * nz1, 0.0);
     std::vector<double> rhs_z(nx1 * ny1 * nz1, 0.0);
     std::vector<double> theta_z(nx1 * ny1 * nz1, 0.0);
     std::vector<double> theta_y(nx1 * ny1 * nz1, 0.0);
 
-    double solve_1, solve_2;
+    // double solve_1, solve_2;
     
     double dt = params.dt;
     int max_iter = params.Nt;
@@ -81,23 +79,11 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
         std::cout << "Start | iteration = " << max_iter << std::endl;
         std::cout << "nx = " << nx1-2 << " | ny = " << ny1-2 << "| nz = " << nz1-2 << std::endl;
     }
-    // MPI_Barrier(MPI_COMM_WORLD); // ---------------------------------------------------------------------------------
-    solve_1 = MPI_Wtime();
+    MPI_Barrier(MPI_COMM_WORLD); // ---------------------------------------------------------------------------------
     for (int t_step=0; t_step<max_iter; ++t_step) {
 
-        double rhs_x_1 = 0.0;
-        double rhs_x_2 = 0.0;
-        double rhs_y_1 = 0.0;
-        double rhs_y_2 = 0.0;
-        double rhs_z_1 = 0.0;
-        double rhs_z_2 = 0.0;
-        
-        // double bdy_z_1 = 0.0;
-        // double bdy_z_2 = 0.0;
-        // double bdy_y_1 = 0.0;
-        // double bdy_y_2 = 0.0;
-        // double bdy_x_1 = 0.0;
-        // double bdy_x_2 = 0.0;
+        double rhs_1 = 0.0;
+        double rhs_2 = 0.0;
 
         double solve_z_1 = 0.0;
         double solve_z_2 = 0.0;
@@ -105,32 +91,16 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
         double solve_y_2 = 0.0;
         double solve_x_1 = 0.0;
         double solve_x_2 = 0.0;
+        // solve_1 = MPI_Wtime();
 
-        // Calculating r.h.s -----------------------------------------------------------------------------------------------------
-        MPI_Barrier(MPI_COMM_WORLD);
-        rhs_x_1 = MPI_Wtime();
-        for (k=0; k<nz1; ++k) {
-            for (j=0; j<ny1; ++j) {
-                for (i=1; i<nx1-1; ++i) {
-                    ijk    = idx_ijk(i  , j, k, nx1, ny1);
-                    idx_ip = idx_ijk(i+1, j, k, nx1, ny1);
-                    idx_im = idx_ijk(i-1, j, k, nx1, ny1);
+        rhs_1 = MPI_Wtime();
+        for (k=1; k<nz1-1; ++k) {
 
-                    dxdx = sub.dmx_sub[i]*sub.dmx_sub[i];
-                    coef_x_a = (dt / 2.0 / dxdx) * ( 1.0 + (5.0/3.0) * sub.theta_x_left_index[i] + (1.0/3.0) * sub.theta_x_right_index[i] );
-                    coef_x_b = (dt / 2.0 / dxdx) * (-2.0 -     (2.0) * sub.theta_x_left_index[i] -     (2.0) * sub.theta_x_right_index[i] );
-                    coef_x_c = (dt / 2.0 / dxdx) * ( 1.0 + (1.0/3.0) * sub.theta_x_left_index[i] + (5.0/3.0) * sub.theta_x_right_index[i] );
-
-                    rhs_x[ijk] = (coef_x_c*theta[idx_ip] + (1.0+coef_x_b)*theta[ijk] + coef_x_a*theta[idx_im]);
-                }
-            }
-        }
-        rhs_x_2 = MPI_Wtime();
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        // rhs_y ---------------------------
-        rhs_y_1 = MPI_Wtime();
-        for (k=0; k<nz1; ++k) {
+            dzdz = sub.dmz_sub[k]*sub.dmz_sub[k];
+            coef_z_a = (dt / 2.0 / dzdz) * ( 1.0 + (5.0/3.0) * sub.theta_z_left_index[k] + (1.0/3.0) * sub.theta_z_right_index[k] );
+            coef_z_b = (dt / 2.0 / dzdz) * (-2.0 -     (2.0) * sub.theta_z_left_index[k] -     (2.0) * sub.theta_z_right_index[k] );
+            coef_z_c = (dt / 2.0 / dzdz) * ( 1.0 + (1.0/3.0) * sub.theta_z_left_index[k] + (5.0/3.0) * sub.theta_z_right_index[k] );
+            
             for (j=1; j<ny1-1; ++j) {
 
                 dydy = sub.dmy_sub[j]*sub.dmy_sub[j];
@@ -139,39 +109,29 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
                 coef_y_c = (dt / 2.0 / dydy) * ( 1.0 + (1.0/3.0) * sub.theta_y_left_index[j] + (5.0/3.0) * sub.theta_y_right_index[j] );
 
                 for (i=1; i<nx1-1; ++i) {
-                    ijk    = idx_ijk(i, j  , k, nx1, ny1); 
-                    idx_jp = idx_ijk(i, j+1, k, nx1, ny1); 
-                    idx_jm = idx_ijk(i, j-1, k, nx1, ny1); 
                     
-                    rhs_y[ijk] = (coef_y_c*rhs_x[idx_jp] + (1.0+coef_y_b)*rhs_x[ijk] + coef_y_a*rhs_x[idx_jm]);
-                }
-            }
-        }
-        rhs_y_2 = MPI_Wtime();
+                    dxdx = sub.dmx_sub[i]*sub.dmx_sub[i];
+                    coef_x_a = (dt / 2.0 / dxdx) * ( 1.0 + (5.0/3.0) * sub.theta_x_left_index[i] + (1.0/3.0) * sub.theta_x_right_index[i] );
+                    coef_x_b = (dt / 2.0 / dxdx) * (-2.0 -     (2.0) * sub.theta_x_left_index[i] -     (2.0) * sub.theta_x_right_index[i] );
+                    coef_x_c = (dt / 2.0 / dxdx) * ( 1.0 + (1.0/3.0) * sub.theta_x_left_index[i] + (5.0/3.0) * sub.theta_x_right_index[i] );
 
-        // rhs_z ---------------------------
-        MPI_Barrier(MPI_COMM_WORLD);
-        rhs_z_1 = MPI_Wtime();
-        for (k=1; k<nz1-1; ++k) {
-
-            dzdz = sub.dmz_sub[k]*sub.dmz_sub[k];
-            coef_z_a = (dt / 2.0 / dzdz) * ( 1.0 + (5.0/3.0) * sub.theta_z_left_index[k] + (1.0/3.0) * sub.theta_z_right_index[k] );
-            coef_z_b = (dt / 2.0 / dzdz) * (-2.0 -     (2.0) * sub.theta_z_left_index[k] -     (2.0) * sub.theta_z_right_index[k] );
-            coef_z_c = (dt / 2.0 / dzdz) * ( 1.0 + (1.0/3.0) * sub.theta_z_left_index[k] + (5.0/3.0) * sub.theta_z_right_index[k] );
-
-            for (j=1; j<ny1-1; ++j) {
-                for (i=1; i<nx1-1; ++i) {
-                    ijk    = idx_ijk(i, j, k  , nx1, ny1); 
+                    ijk    = idx_ijk(i  , j, k, nx1, ny1);
+                    idx_ip = idx_ijk(i+1, j, k, nx1, ny1);
+                    idx_im = idx_ijk(i-1, j, k, nx1, ny1);
+                    idx_jp = idx_ijk(i, j+1, k, nx1, ny1); 
+                    idx_jm = idx_ijk(i, j-1, k, nx1, ny1);
                     idx_kp = idx_ijk(i, j, k+1, nx1, ny1); 
                     idx_km = idx_ijk(i, j, k-1, nx1, ny1);
-  
-                    rhs_z[ijk] = (coef_z_c*rhs_y[idx_kp] + (1.0+coef_z_b)*rhs_y[ijk] + coef_z_a*rhs_y[idx_km]);
 
-                    rhs_z[ijk] += dt * ( 3.0 * Pi*Pi * cos(Pi*sub.x_sub[i]) * cos(Pi*sub.y_sub[j]) * cos(Pi*sub.z_sub[k]));
+                    rhs_z[ijk] = (coef_x_c*theta[idx_ip] + coef_x_a*theta[idx_im])
+                               + (coef_y_c*theta[idx_jp] + coef_y_a*theta[idx_jm])
+                               + (coef_z_c*theta[idx_kp] + coef_z_a*theta[idx_km])
+                               + (1.0 + coef_x_b + coef_y_b + coef_z_b)*theta[ijk]
+                               + dt * ( 3.0 * Pi*Pi * cos(Pi*sub.x_sub[i]) * cos(Pi*sub.y_sub[j]) * cos(Pi*sub.z_sub[k]));
                 }
             }
         }
-        rhs_z_2 = MPI_Wtime();
+        rhs_2 = MPI_Wtime();
 
         // Calculating A matrix ----------------------------------------------------------------
 
@@ -263,9 +223,7 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
                     Dzz[ki] = rhs_z[ijk];
                 }
             }
-
             tdma_z.PaScaL_TDMA_many_solve(pz_many, Azz, Bzz, Czz, Dzz, (nx1-2), (nz1-2));
-
             for (i=1; i<nx1-1; ++i) {
                 for (k=1; k<nz1-1; ++k) {
                     ijk = idx_ijk(i, j, k, nx1, ny1);
@@ -398,16 +356,16 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
         }
         solve_x_2 = MPI_Wtime();
 
+        // solve_2 = MPI_Wtime();
+
         std::vector<std::string> event_names = {
-            "rhs_x", "rhs_y", "rhs_z",
+            "rhs",
             "solve_z",
             "solve_y",
             "solve_x"
         };
         std::vector<double> local_times = {
-            rhs_x_2 - rhs_x_1,
-            rhs_y_2 - rhs_y_1,
-            rhs_z_2 - rhs_z_1,
+            rhs_2 - rhs_1,
             solve_z_2 - solve_z_1,
             solve_y_2 - solve_y_1,
             solve_x_2 - solve_x_1
@@ -419,19 +377,7 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
         sub.ghostcellUpdate(theta, cx, cy, cz, params);
 
     }   // Time step end------------------------
-    solve_2 = MPI_Wtime();
-
-    // std::vector<std::string> event_names = {
-    //     "solve"
-    // };
-    // std::vector<double> local_times = {
-    //     solve_2 - solve_1
-    // };
-    // int npxyz = params.np_dim[0] * params.np_dim[1] * params.np_dim[2];
-    // save_timing_data("results_512_fixed/t_" + std::to_string(npxyz) + ".txt", MPI_COMM_WORLD, event_names, local_times);
-
-    // std::printf("[solve]: %.9f\n", (solve_2 - solve_1));
-    // std::fflush(stdout);
+    // solve_2 = MPI_Wtime();
 
     tdma_x.PaScaL_TDMA_plan_many_destroy(px_many, px_many.nprocs);
     tdma_y.PaScaL_TDMA_plan_many_destroy(py_many, py_many.nprocs);

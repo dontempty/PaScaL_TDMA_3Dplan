@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J test_kdh
 #SBATCH -p batch
-#SBATCH -w cpu06
+#SBATCH -w cpu05
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=64
 #SBATCH -o results/%x_%j.out

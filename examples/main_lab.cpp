@@ -70,28 +70,28 @@ int main(int argc, char** argv) {
   solver.solve_theta_plan_single(theta);
 
   // 13) call error
-  // double local_error=0;
-  // double exact_value;
-  // int ijk;
+  double local_error=0;
+  double exact_value;
+  int ijk;
 
-  // for (int k=1; k<(sub.nz_sub + 1)-1; ++k) {
-  //   for (int j=1; j<(sub.ny_sub + 1)-1; ++j) {
-  //     for (int i=1; i<(sub.nx_sub + 1)-1; ++i) {
-  //       ijk = k*(sub.nx_sub + 1)*(sub.ny_sub + 1) + j*(sub.nx_sub + 1) + i;
+  for (int k=1; k<(sub.nz_sub + 1)-1; ++k) {
+    for (int j=1; j<(sub.ny_sub + 1)-1; ++j) {
+      for (int i=1; i<(sub.nx_sub + 1)-1; ++i) {
+        ijk = k*(sub.nx_sub + 1)*(sub.ny_sub + 1) + j*(sub.nx_sub + 1) + i;
 
-  //       exact_value = sin(Pi*sub.x_sub[i])*sin(Pi*sub.y_sub[j])*sin(Pi*sub.z_sub[k]) * exp(-3*Pi*Pi * params.Tmax) +
-  //                     cos(Pi*sub.x_sub[i])*cos(Pi*sub.y_sub[j])*cos(Pi*sub.z_sub[k]);
+        exact_value = sin(Pi*sub.x_sub[i])*sin(Pi*sub.y_sub[j])*sin(Pi*sub.z_sub[k]) * exp(-3*Pi*Pi * params.Tmax) +
+                      cos(Pi*sub.x_sub[i])*cos(Pi*sub.y_sub[j])*cos(Pi*sub.z_sub[k]);
 
-  //       local_error += pow(theta[ijk] - exact_value, 2);
-  //     }
-  //   }
-  // }
+        local_error += pow(theta[ijk] - exact_value, 2);
+      }
+    }
+  }
 
-  // double global_error;
-  // MPI_Allreduce(&local_error, &global_error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  // if (myrank == 0) {
-  //     std::cout << "Global L2 error = " << std::sqrt(global_error / params.nx / params.ny / params.nz) << "\n";
-  // }
+  double global_error;
+  MPI_Allreduce(&local_error, &global_error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (myrank == 0) {
+      std::cout << "Global L2 error = " << std::sqrt(global_error / params.nx / params.ny / params.nz) << "\n";
+  }
 
   // // 13) solution 하나로 합치기
   // std::vector<double> global_theta;
