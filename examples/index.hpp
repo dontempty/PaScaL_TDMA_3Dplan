@@ -25,6 +25,16 @@ inline int idx_ij(int i, int j, int nx) {
     return j * nx + i;
 }
 
+// (i, k) → ki layout
+inline int idx_ik(int i, int k, int nx) {
+    return k * nx + i;
+}
+
+// (j, i) → jk layout
+inline int idx_ji(int j, int i, int ny) {
+    return i * ny + j;
+}
+
 // (j, k) → jk layout
 inline int idx_jk(int j, int k, int ny) {
     return k * ny + j;
@@ -35,9 +45,6 @@ inline int idx_ki(int k, int i, int nz) {
     return i * nz + k;
 }
 
-// (i, k) → ki layout
-inline int idx_ik(int i, int k, int nx) {
-    return k * nx + i;
-}
+
 
 #endif // INDEX_UTIL_HPP

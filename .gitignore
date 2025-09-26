@@ -4,6 +4,10 @@ single_processor/results/*.csv
 examples/*.exe
 examples/*.sh
 
+run/*.txt
+run/*.err
+run/*.out
+
 *.o
 *.out
 *.log

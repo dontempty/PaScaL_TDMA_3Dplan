@@ -1,0 +1,64 @@
+/opt/intel/oneapi/vtune/2023.2.0/bin64/vtune -R summary -r /shared/home/wel1come1234/workspace/PaScaL_TDMA_lab/run/aps_result_20250924_5c982200-593e-3ed9-833f-060099ef050b/0-7/login01/hwmetrics/results.login01,s.* -q -format csv -csv-delimiter semicolon
+Hierarchy Level;Metric Name;Metric Value
+0;Elapsed Time;4.769452
+1;SP GFLOPS;0.000000
+1;DP GFLOPS;10.183167
+1;x87 GFLOPS;0.000001
+1;IPC;1.939843
+1;Average CPU Frequency;2049436899.406533
+1;Total Thread Count;
+1;CPU Time;34.455307
+0;Effective Physical Core Utilization;29.8% (7.150 out of 24)
+1;Effective Logical Core Utilization;15.1% (7.224 out of 48)
+0;Memory Bound;22.5
+1;Cache Bound;15.1
+1;DRAM Bound;1.8
+2;DRAM Bandwidth Bound;5.8
+1;NUMA: % of Remote Accesses;2.4
+1;Bandwidth Utilization;
+1;Bandwidth Domain;Platform Maximum;Observed Maximum;Average;% of Elapsed Time with High BW Utilization(%)
+1;DRAM, GB/sec;50.000000;36.880200;6.384615;1.9
+1;DRAM Single-Package, GB/sec;25.000000;36.880200;6.384615;5.8
+1;UPI Outgoing, GB/sec;[Unknown];6.520740;1.057692;100.0
+0;Vectorization;24.9
+1;Instruction Mix;
+2;SP FLOPs;0.0
+3;Packed;0.0
+4;128-bit;0.0
+4;256-bit;0.0
+4;512-bit;0.0
+3;Scalar;100.0
+2;DP FLOPs;28.0
+3;Packed;24.9
+4;128-bit;24.8
+4;256-bit;0.1
+4;512-bit;0.0
+3;Scalar;75.1
+2;x87 FLOPs;0.0
+2;Non-FP;72.0
+1;FP Arith/Mem Rd Instr. Ratio;0.806389
+1;FP Arith/Mem Wr Instr. Ratio;2.728667
+0;PCIe Bandwidth Usage;
+1;Average PCIe Bandwidth by Device Class;
+1;PCI Device Class;Total, MB/sec;Inbound PCIe Read, MB/sec;Inbound PCIe Write, MB/sec;Outbound PCIe Read, MB/sec;Outbound PCIe Write, MB/sec
+1;Network controller;2.163041;1.293077;0.855087;0.000242;0.014636
+1;Bridge;0.897635;0.788377;0.108209;0.000989;0.000060
+1;Average PCIe Bandwidth by Device;
+1;PCI device;PCI Device Class;Total, MB/sec;Inbound PCIe Read, MB/sec;Inbound PCIe Write, MB/sec;Outbound PCIe Read, MB/sec;Outbound PCIe Write, MB/sec
+1;MT28908 Family [ConnectX-6] (0000:b1:00.0);Network controller;2.129120;1.279860;0.836096;0.000242;0.012922
+1;Platform Controller Hub (PCH) (0000:00:03.0);Bridge;0.897635;0.788377;0.108209;0.000989;0.000060
+1;I350 Gigabit Network Connection (0000:17:00.[0-3]);Network controller;0.033921;0.013217;0.018991;0.0;0.001713
+0;Collection and Platform Info;
+1;Application Command Line;./a.out "./PARA_INPUT.txt" 
+1;Operating System;5.4.0-148-generic DISTRIB_ID=Ubuntu DISTRIB_RELEASE=20.04 DISTRIB_CODENAME=focal DISTRIB_DESCRIPTION="Ubuntu 20.04.6 LTS"
+1;MPI Process Rank;1
+1;Computer Name;login01
+1;Result Size;4962428
+1;Collection start time;03:43:00 24/09/2025 UTC
+1;Collection stop time;03:43:05 24/09/2025 UTC
+1;Collector Type;Event-based counting driver
+1;CPU;
+2;Name;Intel(R) Xeon(R) Processor code named Icelake
+2;Frequency;2100000000
+2;Logical CPU Count;48
+2;LLC size;18874368
