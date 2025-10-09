@@ -272,16 +272,6 @@ void PaScaL_TDMA::PaScaL_TDMA_plan_many_create(ptdma_plan_many& plan, int n_sys,
                                         MPI_ORDER_C, MPI_DOUBLE,
                                         &plan.ddtype_Fs[i]);
         MPI_Type_commit(&plan.ddtype_Fs[i]);
-
-        // int rank;
-        // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        // if (rank == 1) {
-        //     std::cout << "=== Rank 0 | DDT_Fs[" << i << "] ===\n";
-        //     std::cout << "  bigsize  = [" << bigsize[0] << ", " << bigsize[1] << "]\n";
-        //     std::cout << "  subsize  = [" << subsize[0] << ", " << subsize[1] << "]\n";
-        //     std::cout << "  start    = [" << start[0] << ", " << start[1] << "]\n";
-        //     std::cout << "  sum      = " << sum << "\n";
-        // }
         
         // DDT for receiving coefficients for the transposed systems of reduction using MPI_Ialltoallw communication.
         bigsize[1] = ns_rt;
@@ -394,22 +384,23 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
     // --- Pack ---
     for (i = 0; i < n_sys; ++i) {
 
-        int i0 = 0 * n_sys + i;
-        int i1 = 1 * n_sys + i;
+        int idx0 = 0 * n_sys + i;
+        int idx1 = 1 * n_sys + i;
+        int idxN = (n_row - 1) * n_sys + i;
 
-        r = 1.0 / (1.0 - A[i1] * C[i0]);
-        D[i0] = r * (D[i0] - C[i0] * D[i1]);
-        A[i0] = r * A[i0];
-        C[i0] = -r * C[i0] * C[i1];
+        r = 1.0 / (1.0 - A[idx1] * C[idx0]);
+        D[idx0] = r * (D[idx0] - C[idx0] * D[idx1]);
+        A[idx0] = r * A[idx0];
+        C[idx0] = -r * C[idx0] * C[idx1];
 
-        plan.A_rd[0 * n_sys + i] = A[0 * n_sys + i];
-        plan.A_rd[1 * n_sys + i] = A[(n_row - 1) * n_sys + i];
-        plan.B_rd[0 * n_sys + i] = 1.0;
-        plan.B_rd[1 * n_sys + i] = 1.0;
-        plan.C_rd[0 * n_sys + i] = C[0 * n_sys + i];
-        plan.C_rd[1 * n_sys + i] = C[(n_row - 1) * n_sys + i];
-        plan.D_rd[0 * n_sys + i] = D[0 * n_sys + i];
-        plan.D_rd[1 * n_sys + i] = D[(n_row - 1) * n_sys + i];
+        plan.A_rd[idx0] = A[idx0];
+        plan.A_rd[idx1] = A[idxN];
+        plan.B_rd[idx0] = 1.0;
+        plan.B_rd[idx1] = 1.0;
+        plan.C_rd[idx0] = C[idx0];
+        plan.C_rd[idx1] = C[idxN];
+        plan.D_rd[idx0] = D[idx0];
+        plan.D_rd[idx1] = D[idxN];
     }
     
     // (MPI 통신)
@@ -540,11 +531,24 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_cycle(ptdma_plan_many& plan,
         D[idx] = plan.D_rd[j*2 + 0];
         D[idx + n_row-1] = plan.D_rd[j*2 + 1];
     }
+    for (j = 1; j < n_row - 1; ++j) {
+        const double* __restrict d0 = D; // 0번째 행
+        const double* __restrict dn = D + (size_t)(n_row - 1) * n_sys; // 마지막 행
 
-    for (j = 0; j < n_sys; ++j) {
-        for (i = 1; i < n_row-1; ++i) {
-            idx = j*n_row + 0;
-            D[idx + i] -= A[idx + i] * D[idx] + C[idx + i] * D[idx + n_row-1];
+        double* __restrict dj = D + (size_t)j * n_sys;
+        const double* __restrict aj = A + (size_t)j * n_sys;
+        const double* __restrict cj = C + (size_t)j * n_sys;
+
+        #pragma omp simd
+        for (i = 0; i < n_sys; ++i) {
+            dj[i] -= aj[i] * d0[i] + cj[i] * dn[i];
         }
     }
+
+    // for (j = 0; j < n_sys; ++j) {
+    //     for (i = 1; i < n_row-1; ++i) {
+    //         idx = j*n_row + 0;
+    //         D[idx + i] -= A[idx + i] * D[idx] + C[idx + i] * D[idx + n_row-1];
+    //     }
+    // }
 }

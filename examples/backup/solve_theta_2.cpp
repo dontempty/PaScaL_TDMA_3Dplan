@@ -47,26 +47,21 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
     PaScaL_TDMA::ptdma_plan_many px_many, py_many, pz_many;
 
     auto cx = topo.commX();
-    // int rankx = cx.myrank;
     PaScaL_TDMA tdma_x;
     tdma_x.PaScaL_TDMA_plan_many_create(px_many, sub.ny_sub-1, cx.myrank, cx.nprocs, cx.comm);
     std::vector<double> Axx((nx1-2)*(ny1-2)), Bxx((nx1-2)*(ny1-2)), Cxx((nx1-2)*(ny1-2)), Dxx((nx1-2)*(ny1-2));
 
     auto cy = topo.commY();
-    // int ranky = cy.myrank;
     PaScaL_TDMA tdma_y;
     tdma_y.PaScaL_TDMA_plan_many_create(py_many, sub.nx_sub-1, cy.myrank, cy.nprocs, cy.comm);
     std::vector<double> Ayy((ny1-2)*(nx1-2)), Byy((ny1-2)*(nx1-2)), Cyy((ny1-2)*(nx1-2)), Dyy((ny1-2)*(nx1-2));
 
     auto cz = topo.commZ();
-    // int rankz = cz.myrank;
     PaScaL_TDMA tdma_z;
     tdma_z.PaScaL_TDMA_plan_many_create(pz_many, sub.nx_sub-1, cz.myrank, cz.nprocs, cz.comm);
     std::vector<double> Azz((nz1-2)*(nx1-2)), Bzz((nz1-2)*(nx1-2)), Czz((nz1-2)*(nx1-2)), Dzz((nz1-2)*(nx1-2));
     
     std::vector<double> rhs(nx1 * ny1 * nz1, 0.0);
-    // std::vector<double> theta_z(nx1 * ny1 * nz1, 0.0);
-    // std::vector<double> theta_y(nx1 * ny1 * nz1, 0.0);
     
     double dt = params.dt;
     int max_iter = params.Nt;
@@ -325,8 +320,8 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
         // bdy_x_2 = MPI_Wtime();
 
         // x solve
-        MPI_Barrier(MPI_COMM_WORLD);
-        solve_x_1 = MPI_Wtime();
+        // MPI_Barrier(MPI_COMM_WORLD);
+        // solve_x_1 = MPI_Wtime();
         for (k=1; k<nz1-1; ++k) {
             for (i=1; i<nx1-1; ++i) {
 

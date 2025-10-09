@@ -272,16 +272,6 @@ void PaScaL_TDMA::PaScaL_TDMA_plan_many_create(ptdma_plan_many& plan, int n_sys,
                                         MPI_ORDER_C, MPI_DOUBLE,
                                         &plan.ddtype_Fs[i]);
         MPI_Type_commit(&plan.ddtype_Fs[i]);
-
-        // int rank;
-        // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        // if (rank == 1) {
-        //     std::cout << "=== Rank 0 | DDT_Fs[" << i << "] ===\n";
-        //     std::cout << "  bigsize  = [" << bigsize[0] << ", " << bigsize[1] << "]\n";
-        //     std::cout << "  subsize  = [" << subsize[0] << ", " << subsize[1] << "]\n";
-        //     std::cout << "  start    = [" << start[0] << ", " << start[1] << "]\n";
-        //     std::cout << "  sum      = " << sum << "\n";
-        // }
         
         // DDT for receiving coefficients for the transposed systems of reduction using MPI_Ialltoallw communication.
         bigsize[0] = ns_rt;
@@ -631,12 +621,6 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
         }
     }
     solve_remain_2 = MPI_Wtime();
-
-    // std::printf("[preprocess]:   %.9f\n", (preprocess_2 - preprocess_1));
-    // std::printf("[gather]:       %.9f\n", (gather_2 - gather_1));
-    // std::printf("[tdma_many]:    %.9f\n", (tdma_many_2 - tdma_many_1));
-    // std::printf("[scatter]:      %.9f\n", (scatter_2 - scatter_1));
-    // std::printf("[solve_remain]: %.9f\n", (solve_remain_2 - solve_remain_1));
 
     time_list[0] += preprocess_2 - preprocess_1;
     time_list[1] += gather_2 - gather_1;
