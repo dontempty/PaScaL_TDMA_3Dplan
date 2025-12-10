@@ -15,3 +15,6 @@ cd run
 여기서는 3D plan을 만들어서 함수 호출을 한 번만 하자.
 
 결과: 더 안좋아짐
+
+//
+examples/backup/solve_theta_2D가 옛날 버전입니다.
