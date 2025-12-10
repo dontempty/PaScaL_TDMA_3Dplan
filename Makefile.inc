@@ -1,7 +1,7 @@
 # nvhpc
-CXX       := mpicxx
-CXXFLAGS  := -O3 -std=c++17 -g -fPIC
-CXXFLAGS  += -Kieee -tp=icelake
+# CXX       := mpicxx
+# CXXFLAGS  := -O1 -std=c++17 -g -fPIC
+# CXXFLAGS  += -tp=icelake
 # CXXFLAGS  += -Minfo=all 
 # run: make lib 2> ./minfo.log
 
@@ -13,4 +13,11 @@ CXXFLAGS  += -Kieee -tp=icelake
 # intel
 # CXX       := mpiicpx
 # CXXFLAGS  := -O3 -std=c++17 -g -fPIC
-# CXXFLAGS  := -O3 -std=c++17 -g -fPIC -fopenmp -fp-model precise -march=native
+# CXXFLAGS  += -tp=icelake
+
+
+# ---------- vector report -----------
+CXX       := mpicxx
+CXXFLAGS  := -O1 -std=c++17 -g -fPIC
+CXXFLAGS  += -tp=icelake
+# CXXFLAGS  += -Minfo=vec -Mcache_align -mp

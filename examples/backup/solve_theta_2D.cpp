@@ -224,7 +224,7 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
                     Dzz[ik] = rhs[ijk];
                 }
             }
-            tdma_z.PaScaL_TDMA_many_solve(pz_many, Azz.data(), Bzz.data(), Czz.data(), Dzz.data(), (nx1-2), (nz1-2));
+            tdma_z.PaScaL_TDMA_many_solve(pz_many, Azz, Bzz, Czz, Dzz, (nx1-2), (nz1-2));
             for (k=1; k<nz1-1; ++k) {
                 for (i=1; i<nx1-1; ++i) {
                     ijk = idx_ijk(i, j, k, nx1, ny1);
@@ -290,7 +290,7 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
                     Dyy[ij] = rhs[ijk];
                 }
             }
-            tdma_y.PaScaL_TDMA_many_solve(py_many, Ayy.data(), Byy.data(), Cyy.data(), Dyy.data(), nx1-2, ny1-2);
+            tdma_y.PaScaL_TDMA_many_solve(py_many, Ayy, Byy, Cyy, Dyy, nx1-2, ny1-2);
             for (j=1; j<ny1-1; ++j) {
                 for (i=1; i<nx1-1; ++i) {
                     ijk = idx_ijk(i, j, k, nx1, ny1);
@@ -347,7 +347,7 @@ void solve_theta::solve_theta_plan_single(std::vector<double>& theta)
                     Dxx[ji] = rhs[ijk];
                 }
             }
-            tdma_x.PaScaL_TDMA_many_solve(px_many, Axx.data(), Bxx.data(), Cxx.data(), Dxx.data(), ny1-2, nx1-2);
+            tdma_x.PaScaL_TDMA_many_solve(px_many, Axx, Bxx, Cxx, Dxx, ny1-2, nx1-2);
             for (i=1; i<nx1-1; ++i) {
                 for (j=1; j<ny1-1; ++j) {
                     ijk = idx_ijk(i, j, k, nx1, ny1);

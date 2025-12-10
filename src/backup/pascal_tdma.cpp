@@ -252,7 +252,8 @@ void PaScaL_TDMA::PaScaL_TDMA_plan_many_create(ptdma_plan_many& plan, int n_sys,
     plan.D_rd.resize(nr_rd * ns_rd);
 
     plan.A_rt.resize(nr_rt * ns_rt);
-    plan.B_rt.resize(nr_rt * ns_rt, 1.0); // 어차피 통신하는 B는 모두 1.0이다.
+    // plan.B_rt.resize(nr_rt * ns_rt, 1.0);
+    plan.B_rt.assign(nr_rt * ns_rt, 1.0);
     plan.C_rt.resize(nr_rt * ns_rt);
     plan.D_rt.resize(nr_rt * ns_rt);
 
@@ -315,52 +316,201 @@ void PaScaL_TDMA::PaScaL_TDMA_plan_many_destroy(ptdma_plan_many& plan, int nproc
     plan.A_rt.shrink_to_fit(); plan.B_rt.shrink_to_fit(); plan.C_rt.shrink_to_fit(); plan.D_rt.shrink_to_fit();
 }
 
+// void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
+//                                          std::vector<double>& A_,
+//                                          std::vector<double>& B_,
+//                                          std::vector<double>& C_,
+//                                          std::vector<double>& D_,
+//                                          int n_sys, int n_row) {
+
+//     std::vector<MPI_Request> request(4);
+
+//     if (plan.nprocs == 1) {
+//         tdma_many(A_, B_, C_, D_, n_sys, n_row);
+//         return;
+//     }
+    
+//     // ========================================================================
+//     // 변수 선언 최적화 적용
+//     // ========================================================================
+//     double* __restrict A = A_.data();
+//     double* __restrict B = B_.data();
+//     double* __restrict C = C_.data();
+//     double* __restrict D = D_.data();
+
+//     int i, j, idx, idx_jp, idx_jm;
+//     double r;
+
+//     // --- Preprocess ---
+//     for (i=0; i<n_sys; ++i) {
+        
+//         int i0 = 0 * n_sys + i;
+//         int i1 = 1 * n_sys + i;
+        
+//         // j=0
+//         r = 1.0 / B[i0];
+//         A[i0] *= r; D[i0] *= r; C[i0] *= r;
+
+//         // j=1
+//         r = 1.0 / B[i1];
+//         A[i1] *= r; D[i1] *= r; C[i1] *= r;
+
+//     }
+
+//     // --- Forward Elimination ---
+//     for (j=2; j<n_row; ++j) {
+//         for (i=0; i<n_sys; ++i) {
+//             idx    = j*n_sys + i;
+//             idx_jm = (j-1)*n_sys + i;
+
+//             r = 1.0 / (B[idx] - A[idx] * C[idx_jm]);
+//             D[idx] =  r * (D[idx] - A[idx] * D[idx_jm]);
+//             C[idx] =  r * C[idx];
+//             A[idx] = -r * A[idx] * A[idx_jm];
+//         }
+//     }
+
+//     // --- Backward Substitution ---
+//     for (j=n_row-3; j>=1; --j) {
+//         for (i=0; i<n_sys; ++i) {
+//             idx    = j * n_sys + i;
+//             idx_jp = (j + 1) * n_sys + i;
+
+//             D[idx] -= C[idx] * D[idx_jp];
+//             A[idx] -= C[idx] * A[idx_jp];
+//             C[idx] *= -C[idx_jp];
+//         }
+//     }
+
+//     // --- Pack ---
+//     for (i = 0; i < n_sys; ++i) {
+
+//         int idx0 = 0 * n_sys + i;
+//         int idx1 = 1 * n_sys + i;
+//         int idxN = (n_row - 1) * n_sys + i;
+
+//         r = 1.0 / (1.0 - A[idx1] * C[idx0]);
+//         D[idx0] = r * (D[idx0] - C[idx0] * D[idx1]);
+//         A[idx0] = r * A[idx0];
+//         C[idx0] = -r * C[idx0] * C[idx1];
+
+//         plan.A_rd[idx0] = A[idx0];
+//         plan.A_rd[idx1] = A[idxN];
+//         plan.B_rd[idx0] = 1.0;
+//         plan.B_rd[idx1] = 1.0;
+//         plan.C_rd[idx0] = C[idx0];
+//         plan.C_rd[idx1] = C[idxN];
+//         plan.D_rd[idx0] = D[idx0];
+//         plan.D_rd[idx1] = D[idxN];
+//     }
+    
+//     // (MPI 통신)
+//     MPI_Ialltoallw(plan.A_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.A_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[0]);
+//     MPI_Ialltoallw(plan.B_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.B_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[1]);
+//     MPI_Ialltoallw(plan.C_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.C_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[2]);
+//     MPI_Ialltoallw(plan.D_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.D_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[3]);
+//     MPI_Waitall(3, request.data(), MPI_STATUSES_IGNORE);
+
+//     tdma_many(plan.A_rt, plan.B_rt, plan.C_rt, plan.D_rt, plan.n_sys_rt, plan.n_row_rt);
+
+//     MPI_Ialltoallw(plan.D_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.D_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.ptdma_world, &request[0]);
+//     MPI_Waitall(1, request.data(), MPI_STATUSES_IGNORE);
+
+//     // --- Final Local Solve ---
+//     for (i = 0; i < n_sys; ++i) {
+//         D[0 * n_sys + i] = plan.D_rd[0 * (n_sys) + i];
+//         D[(n_row - 1) * n_sys + i] = plan.D_rd[1 * (n_sys) + i];
+//     }
+
+//     for (j = 1; j < n_row - 1; ++j) {
+//         const double* __restrict d0 = D; // 0번째 행
+//         const double* __restrict dn = D + (size_t)(n_row - 1) * n_sys; // 마지막 행
+
+//         double* __restrict dj = D + (size_t)j * n_sys;
+//         const double* __restrict aj = A + (size_t)j * n_sys;
+//         const double* __restrict cj = C + (size_t)j * n_sys;
+
+//         #pragma omp simd
+//         for (i = 0; i < n_sys; ++i) {
+//             dj[i] -= aj[i] * d0[i] + cj[i] * dn[i];
+//         }
+//     }
+
+//     // for (j = 1; j < n_row - 1; ++j) {
+//     //     for (i = 0; i < n_sys; ++i) {
+//     //         D[j * n_sys + i] -= A[j * n_sys + i] * D[0 * n_sys + i] + C[j * n_sys + i] * D[(n_row - 1) * n_sys + i];
+//     //     }
+//     // }
+// }
+
 void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
-                                         double* __restrict A,
-                                         double* __restrict B,
-                                         double* __restrict C,
-                                         double* __restrict D,
+                                         std::vector<double>& A_,
+                                         std::vector<double>& B_,
+                                         std::vector<double>& C_,
+                                         std::vector<double>& D_,
                                          int n_sys, int n_row) {
 
     std::vector<MPI_Request> request(3); // A, C, D
 
     if (plan.nprocs == 1) {
-        tdma_many(A, B, C, D, n_sys, n_row);
+        tdma_many(A_, B_, C_, D_, n_sys, n_row);
         return;
     }
     
     // ========================================================================
     // 변수 선언 최적화 적용
     // ========================================================================
+    double* __restrict A = A_.data();
+    double* __restrict B = B_.data();
+    double* __restrict C = C_.data();
+    double* __restrict D = D_.data();
 
     int i, j; // , idx, idx_jp, idx_jm;
     // double r;
 
-    // resriction ----------------------------------------------------
-    double* A0 = A + (size_t)(0)*n_sys;
-    double* A1 = A + (size_t)(1)*n_sys;
-    double* AN = A + (size_t)(n_row-1)*n_sys;
+    // double forward_1, forward_2;
+    // double backward_1, backward_2;
+    // double pack_1, pack_2;
+    // double scatter_1, scatter_2;
+    // double solve_1, solve_2;
+    // double gather_1, gather_2;
+    // double final_solve_1, final_solve_2;
 
-    double* B0 = B + (size_t)(0)*n_sys;
-    double* B1 = B + (size_t)(1)*n_sys;
+    // resriction ----------------------------------------------------
+    double* __restrict A0 = A + (size_t)(0)*n_sys;
+    double* __restrict A1 = A + (size_t)(1)*n_sys;
+    double* __restrict AN = A + (size_t)(n_row-1)*n_sys;
+
+    double* __restrict B0 = B + (size_t)(0)*n_sys;
+    double* __restrict B1 = B + (size_t)(1)*n_sys;
     // double* __restrict BN = B + (size_t)(n_row-1)*n_sys;
 
-    double* C0 = C + (size_t)(0)*n_sys;
-    double* C1 = C + (size_t)(1)*n_sys;
-    double* CN = C + (size_t)(n_row-1)*n_sys;
+    double* __restrict C0 = C + (size_t)(0)*n_sys;
+    double* __restrict C1 = C + (size_t)(1)*n_sys;
+    double* __restrict CN = C + (size_t)(n_row-1)*n_sys;
 
-    double* D0 = D + (size_t)(0)*n_sys;
-    double* D1 = D + (size_t)(1)*n_sys;
-    double* DN = D + (size_t)(n_row-1)*n_sys;
+    double* __restrict D0 = D + (size_t)(0)*n_sys;
+    double* __restrict D1 = D + (size_t)(1)*n_sys;
+    double* __restrict DN = D + (size_t)(n_row-1)*n_sys;
 
-    double* A_rd0 = plan.A_rd.data() + 0*n_sys;
-    double* A_rd1 = plan.A_rd.data() + 1*n_sys;
+    double* __restrict A_rd0 = plan.A_rd.data() + 0*n_sys;
+    double* __restrict A_rd1 = plan.A_rd.data() + 1*n_sys;
 
-    double* C_rd0 = plan.C_rd.data() + 0*n_sys;
-    double* C_rd1 = plan.C_rd.data() + 1*n_sys;
+    double* __restrict C_rd0 = plan.C_rd.data() + 0*n_sys;
+    double* __restrict C_rd1 = plan.C_rd.data() + 1*n_sys;
 
-    double* D_rd0 = plan.D_rd.data() + 0*n_sys;
-    double* D_rd1 = plan.D_rd.data() + 1*n_sys;
+    double* __restrict D_rd0 = plan.D_rd.data() + 0*n_sys;
+    double* __restrict D_rd1 = plan.D_rd.data() + 1*n_sys;
     // ---------------------------------------------------------------
 
     // --- Preprocess ---
@@ -384,14 +534,14 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
     // --- Forward Elimination ---
     for (j=2; j<n_row; ++j) {
 
-        double* Aj = A + (size_t)j*n_sys;
-        double* Bj = B + (size_t)j*n_sys;
-        double* Cj = C + (size_t)j*n_sys;
-        double* Dj = D + (size_t)j*n_sys;
+        double* __restrict Aj = A + (size_t)j*n_sys;
+        double* __restrict Bj = B + (size_t)j*n_sys;
+        double* __restrict Cj = C + (size_t)j*n_sys;
+        double* __restrict Dj = D + (size_t)j*n_sys;
 
-        const double* Ajm = A + (size_t)(j-1)*n_sys;
-        const double* Cjm = C + (size_t)(j-1)*n_sys;
-        const double* Djm = D + (size_t)(j-1)*n_sys;
+        const double* __restrict Ajm = A + (size_t)(j-1)*n_sys;
+        const double* __restrict Cjm = C + (size_t)(j-1)*n_sys;
+        const double* __restrict Djm = D + (size_t)(j-1)*n_sys;
 
         #pragma omp simd
         for (i=0; i<n_sys; ++i) {
@@ -406,13 +556,13 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
     // --- Backward Substitution ---
     for (j=n_row-3; j>=1; --j) {
 
-        double* Aj = A + (size_t)j*n_sys;
-        double* Cj = C + (size_t)j*n_sys;
-        double* Dj = D + (size_t)j*n_sys;
+        double* __restrict Aj = A + (size_t)j*n_sys;
+        double* __restrict Cj = C + (size_t)j*n_sys;
+        double* __restrict Dj = D + (size_t)j*n_sys;
 
-        const double* Ajp = A + (size_t)(j+1)*n_sys;
-        const double* Cjp = C + (size_t)(j+1)*n_sys;
-        const double* Djp = D + (size_t)(j+1)*n_sys;
+        const double* __restrict Ajp = A + (size_t)(j+1)*n_sys;
+        const double* __restrict Cjp = C + (size_t)(j+1)*n_sys;
+        const double* __restrict Djp = D + (size_t)(j+1)*n_sys;
 
         #pragma omp simd
         for (i=0; i<n_sys; ++i) {
@@ -435,8 +585,8 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
         A_rd0[i] = A0[i];
         A_rd1[i] = AN[i];
 
-        // B_rd0[i] = B0[i];
-        // B_rd1[i] = BN[i];
+        // B_rd0[i] = A0[i];
+        // B_rd1[i] = AN[i];
 
         C_rd0[i] = C0[i];
         C_rd1[i] = CN[i];
@@ -460,14 +610,14 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
                    plan.ptdma_world, &request[2]);
     MPI_Waitall(3, request.data(), MPI_STATUSES_IGNORE);
 
-    tdma_many(plan.A_rt.data(), plan.B_rt.data(), plan.C_rt.data(), plan.D_rt.data(), plan.n_sys_rt, plan.n_row_rt);
+    tdma_many(plan.A_rt, plan.B_rt, plan.C_rt, plan.D_rt, plan.n_sys_rt, plan.n_row_rt);
 
     MPI_Ialltoallw(plan.D_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
                    plan.D_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
                    plan.ptdma_world, &request[0]);
     MPI_Wait(&request[0], MPI_STATUS_IGNORE);
 
-    // --- Final Local Solve ---   
+    // --- Final Local Solve ---
     #pragma omp simd
     for (i = 0; i < n_sys; ++i) {
         D0[i] = D_rd0[i];
@@ -475,9 +625,9 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
     }
 
     for (j = 1; j < n_row - 1; ++j) {
-        double* dj = D + (size_t)j * n_sys;
-        const double* aj = A + (size_t)j * n_sys;
-        const double* cj = C + (size_t)j * n_sys;
+        double*       __restrict dj = D + (size_t)j * n_sys;
+        const double* __restrict aj = A + (size_t)j * n_sys;
+        const double* __restrict cj = C + (size_t)j * n_sys;
 
         #pragma omp simd 
         for (i = 0; i < n_sys; ++i) {
@@ -487,52 +637,29 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
 }
 
 void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
-                                         double* __restrict A,
-                                         double* __restrict B,
-                                         double* __restrict C,
-                                         double* __restrict D,
+                                         std::vector<double>& A_,
+                                         std::vector<double>& B_,
+                                         std::vector<double>& C_,
+                                         std::vector<double>& D_,
                                          int n_sys, int n_row, std::vector<double>& time_list) {
 
     std::vector<MPI_Request> request(3); // A, C, D
 
     if (plan.nprocs == 1) {
-        tdma_many_debug(A, B, C, D, n_sys, n_row, time_list);
+        tdma_many(A_, B_, C_, D_, n_sys, n_row);
         return;
     }
     
     // ========================================================================
     // 변수 선언 최적화 적용
     // ========================================================================
+    double* __restrict A = A_.data();
+    double* __restrict B = B_.data();
+    double* __restrict C = C_.data();
+    double* __restrict D = D_.data();
 
     int i, j; // , idx, idx_jp, idx_jm;
     // double r;
-
-    // resriction ----------------------------------------------------
-    double* A0 = A + (size_t)(0)*n_sys;
-    double* A1 = A + (size_t)(1)*n_sys;
-    double* AN = A + (size_t)(n_row-1)*n_sys;
-
-    double* B0 = B + (size_t)(0)*n_sys;
-    double* B1 = B + (size_t)(1)*n_sys;
-    // double* __restrict BN = B + (size_t)(n_row-1)*n_sys;
-
-    double* C0 = C + (size_t)(0)*n_sys;
-    double* C1 = C + (size_t)(1)*n_sys;
-    double* CN = C + (size_t)(n_row-1)*n_sys;
-
-    double* D0 = D + (size_t)(0)*n_sys;
-    double* D1 = D + (size_t)(1)*n_sys;
-    double* DN = D + (size_t)(n_row-1)*n_sys;
-
-    double* A_rd0 = plan.A_rd.data() + 0*n_sys;
-    double* A_rd1 = plan.A_rd.data() + 1*n_sys;
-
-    double* C_rd0 = plan.C_rd.data() + 0*n_sys;
-    double* C_rd1 = plan.C_rd.data() + 1*n_sys;
-
-    double* D_rd0 = plan.D_rd.data() + 0*n_sys;
-    double* D_rd1 = plan.D_rd.data() + 1*n_sys;
-    // ---------------------------------------------------------------
 
     double forward_1, forward_2;
     double backward_1, backward_2;
@@ -542,9 +669,37 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
     double gather_1, gather_2;
     double final_solve_1, final_solve_2;
 
+    // resriction ----------------------------------------------------
+    double* __restrict A0 = A + (size_t)(0)*n_sys;
+    double* __restrict A1 = A + (size_t)(1)*n_sys;
+    double* __restrict AN = A + (size_t)(n_row-1)*n_sys;
+
+    double* __restrict B0 = B + (size_t)(0)*n_sys;
+    double* __restrict B1 = B + (size_t)(1)*n_sys;
+    // double* __restrict BN = B + (size_t)(n_row-1)*n_sys;
+
+    double* __restrict C0 = C + (size_t)(0)*n_sys;
+    double* __restrict C1 = C + (size_t)(1)*n_sys;
+    double* __restrict CN = C + (size_t)(n_row-1)*n_sys;
+
+    double* __restrict D0 = D + (size_t)(0)*n_sys;
+    double* __restrict D1 = D + (size_t)(1)*n_sys;
+    double* __restrict DN = D + (size_t)(n_row-1)*n_sys;
+
+    double* __restrict A_rd0 = plan.A_rd.data() + 0*n_sys;
+    double* __restrict A_rd1 = plan.A_rd.data() + 1*n_sys;
+
+    double* __restrict C_rd0 = plan.C_rd.data() + 0*n_sys;
+    double* __restrict C_rd1 = plan.C_rd.data() + 1*n_sys;
+
+    double* __restrict D_rd0 = plan.D_rd.data() + 0*n_sys;
+    double* __restrict D_rd1 = plan.D_rd.data() + 1*n_sys;
+    // ---------------------------------------------------------------
+
     // --- Preprocess ---
     MPI_Barrier(plan.ptdma_world);
     forward_1 = MPI_Wtime();
+
     #pragma omp simd
     for (i=0; i<n_sys; ++i) {
         
@@ -565,14 +720,14 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
     // --- Forward Elimination ---
     for (j=2; j<n_row; ++j) {
 
-        double* Aj = A + (size_t)j*n_sys;
-        double* Bj = B + (size_t)j*n_sys;
-        double* Cj = C + (size_t)j*n_sys;
-        double* Dj = D + (size_t)j*n_sys;
+        double* __restrict Aj = A + (size_t)j*n_sys;
+        double* __restrict Bj = B + (size_t)j*n_sys;
+        double* __restrict Cj = C + (size_t)j*n_sys;
+        double* __restrict Dj = D + (size_t)j*n_sys;
 
-        const double* Ajm = A + (size_t)(j-1)*n_sys;
-        const double* Cjm = C + (size_t)(j-1)*n_sys;
-        const double* Djm = D + (size_t)(j-1)*n_sys;
+        const double* __restrict Ajm = A + (size_t)(j-1)*n_sys;
+        const double* __restrict Cjm = C + (size_t)(j-1)*n_sys;
+        const double* __restrict Djm = D + (size_t)(j-1)*n_sys;
 
         #pragma omp simd
         for (i=0; i<n_sys; ++i) {
@@ -590,13 +745,13 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
     backward_1 = MPI_Wtime();
     for (j=n_row-3; j>=1; --j) {
 
-        double* Aj = A + (size_t)j*n_sys;
-        double* Cj = C + (size_t)j*n_sys;
-        double* Dj = D + (size_t)j*n_sys;
+        double* __restrict Aj = A + (size_t)j*n_sys;
+        double* __restrict Cj = C + (size_t)j*n_sys;
+        double* __restrict Dj = D + (size_t)j*n_sys;
 
-        const double* Ajp = A + (size_t)(j+1)*n_sys;
-        const double* Cjp = C + (size_t)(j+1)*n_sys;
-        const double* Djp = D + (size_t)(j+1)*n_sys;
+        const double* __restrict Ajp = A + (size_t)(j+1)*n_sys;
+        const double* __restrict Cjp = C + (size_t)(j+1)*n_sys;
+        const double* __restrict Djp = D + (size_t)(j+1)*n_sys;
 
         #pragma omp simd
         for (i=0; i<n_sys; ++i) {
@@ -623,8 +778,8 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
         A_rd0[i] = A0[i];
         A_rd1[i] = AN[i];
 
-        // B_rd0[i] = B0[i];
-        // B_rd1[i] = BN[i];
+        // B_rd0[i] = A0[i];
+        // B_rd1[i] = AN[i];
 
         C_rd0[i] = C0[i];
         C_rd1[i] = CN[i];
@@ -654,7 +809,7 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
 
     MPI_Barrier(plan.ptdma_world);
     solve_1 = MPI_Wtime();
-    tdma_many(plan.A_rt.data(), plan.B_rt.data(), plan.C_rt.data(), plan.D_rt.data(), plan.n_sys_rt, plan.n_row_rt);
+    tdma_many(plan.A_rt, plan.B_rt, plan.C_rt, plan.D_rt, plan.n_sys_rt, plan.n_row_rt);
     solve_2 = MPI_Wtime();
 
     MPI_Barrier(plan.ptdma_world);
@@ -676,9 +831,9 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
     }
 
     for (j = 1; j < n_row - 1; ++j) {
-        double* dj = D + (size_t)j * n_sys;
-        const double* aj = A + (size_t)j * n_sys;
-        const double* cj = C + (size_t)j * n_sys;
+        double*       __restrict dj = D + (size_t)j * n_sys;
+        const double* __restrict aj = A + (size_t)j * n_sys;
+        const double* __restrict cj = C + (size_t)j * n_sys;
 
         #pragma omp simd 
         for (i = 0; i < n_sys; ++i) {
@@ -695,7 +850,186 @@ void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
     time_list[4] = solve_2 - solve_1;
     time_list[5] = gather_2 - gather_1;
     time_list[6] = final_solve_2 - final_solve_1;
+
+    // for (j = 1; j < n_row - 1; ++j) {
+    //     for (i = 0; i < n_sys; ++i) {
+    //         D[j * n_sys + i] -= A[j * n_sys + i] * D[0 * n_sys + i] + C[j * n_sys + i] * D[(n_row - 1) * n_sys + i];
+    //     }
+    // }
 }
+
+// void PaScaL_TDMA::PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
+//                                          std::vector<double>& A_,
+//                                          std::vector<double>& B_,
+//                                          std::vector<double>& C_,
+//                                          std::vector<double>& D_,
+//                                          int n_sys, int n_row, std::vector<double>& time_list) {
+
+//     std::vector<MPI_Request> request(4);
+
+//     if (plan.nprocs == 1) {
+//         tdma_many(A_, B_, C_, D_, n_sys, n_row);
+//         return;
+//     }
+    
+//     // ========================================================================
+//     // 변수 선언 최적화 적용
+//     // ========================================================================
+//     double* __restrict A = A_.data();
+//     double* __restrict B = B_.data();
+//     double* __restrict C = C_.data();
+//     double* __restrict D = D_.data();
+
+//     int i, j, idx, idx_jp, idx_jm;
+//     double r;
+
+//     double forward_1, forward_2;
+//     double backward_1, backward_2;
+//     double pack_1, pack_2;
+//     double scatter_1, scatter_2;
+//     double solve_1, solve_2;
+//     double gather_1, gather_2;
+//     double final_solve_1, final_solve_2;
+
+//     // --- Preprocess ---
+//     MPI_Barrier(plan.ptdma_world);
+//     forward_1 = MPI_Wtime();
+//     for (i=0; i<n_sys; ++i) {
+        
+//         int i0 = 0 * n_sys + i;
+//         int i1 = 1 * n_sys + i;
+        
+//         // j=0
+//         r = 1.0 / B[i0];
+//         A[i0] *= r; D[i0] *= r; C[i0] *= r;
+
+//         // j=1
+//         r = 1.0 / B[i1];
+//         A[i1] *= r; D[i1] *= r; C[i1] *= r;
+//     }
+
+//     // --- Forward Elimination ---
+//     for (j=2; j<n_row; ++j) {
+//         for (i=0; i<n_sys; ++i) {
+//             idx    = j*n_sys + i;
+//             idx_jm = (j-1)*n_sys + i;
+
+//             r = 1.0 / (B[idx] - A[idx] * C[idx_jm]);
+//             D[idx] =  r * (D[idx] - A[idx] * D[idx_jm]);
+//             C[idx] =  r * C[idx];
+//             A[idx] = -r * A[idx] * A[idx_jm];
+//         }
+//     }
+//     forward_2 = MPI_Wtime();
+
+//     // --- Backward Substitution ---
+//     MPI_Barrier(plan.ptdma_world);
+//     backward_1 = MPI_Wtime();
+//     for (j=n_row-3; j>=1; --j) {
+//         for (i=0; i<n_sys; ++i) {
+//             idx    = j * n_sys + i;
+//             idx_jp = (j + 1) * n_sys + i;
+
+//             D[idx] -= C[idx] * D[idx_jp];
+//             A[idx] -= C[idx] * A[idx_jp];
+//             C[idx] *= -C[idx_jp];
+//         }
+//     }
+//     backward_2 = MPI_Wtime();
+
+//     // --- Pack ---
+//     MPI_Barrier(plan.ptdma_world);
+//     pack_1 =  MPI_Wtime();
+//     for (i = 0; i < n_sys; ++i) {
+
+//         int idx0 = 0 * n_sys + i;
+//         int idx1 = 1 * n_sys + i;
+//         int idxN = (n_row - 1) * n_sys + i;
+
+//         r = 1.0 / (1.0 - A[idx1] * C[idx0]);
+//         D[idx0] = r * (D[idx0] - C[idx0] * D[idx1]);
+//         A[idx0] = r * A[idx0];
+//         C[idx0] = -r * C[idx0] * C[idx1];
+
+//         plan.A_rd[idx0] = A[idx0];
+//         plan.A_rd[idx1] = A[idxN];
+//         plan.B_rd[idx0] = 1.0;
+//         plan.B_rd[idx1] = 1.0;
+//         plan.C_rd[idx0] = C[idx0];
+//         plan.C_rd[idx1] = C[idxN];
+//         plan.D_rd[idx0] = D[idx0];
+//         plan.D_rd[idx1] = D[idxN];
+//     }
+//     pack_2 = MPI_Wtime();
+    
+//     // (MPI 통신)
+//     MPI_Barrier(plan.ptdma_world);
+//     scatter_1 = MPI_Wtime();
+//     MPI_Ialltoallw(plan.A_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.A_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[0]);
+//     MPI_Ialltoallw(plan.B_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.B_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[1]);
+//     MPI_Ialltoallw(plan.C_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.C_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[2]);
+//     MPI_Ialltoallw(plan.D_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.D_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.ptdma_world, &request[3]);
+//     MPI_Waitall(4, request.data(), MPI_STATUSES_IGNORE);
+//     scatter_2 = MPI_Wtime();
+
+//     MPI_Barrier(plan.ptdma_world);
+//     solve_1 = MPI_Wtime();
+//     tdma_many(plan.A_rt, plan.B_rt, plan.C_rt, plan.D_rt, plan.n_sys_rt, plan.n_row_rt);
+//     solve_2 = MPI_Wtime();
+
+//     MPI_Barrier(plan.ptdma_world);
+//     gather_1 = MPI_Wtime();
+//     MPI_Ialltoallw(plan.D_rt.data(), plan.count_recv.data(), plan.displ_recv.data(), plan.ddtype_Bs.data(),
+//                    plan.D_rd.data(), plan.count_send.data(), plan.displ_send.data(), plan.ddtype_Fs.data(),
+//                    plan.ptdma_world, &request[0]);
+//     MPI_Waitall(1, request.data(), MPI_STATUSES_IGNORE);
+//     gather_2 = MPI_Wtime();
+
+//     // --- Final Local Solve ---
+//     MPI_Barrier(plan.ptdma_world);
+//     final_solve_1 = MPI_Wtime();
+//     for (i = 0; i < n_sys; ++i) {
+//         D[0 * n_sys + i] = plan.D_rd[0 * (n_sys) + i];
+//         D[(n_row - 1) * n_sys + i] = plan.D_rd[1 * (n_sys) + i];
+//     }
+
+//     const double* __restrict d0 = D; // 0번째 행
+//     const double* __restrict dn = D + (size_t)(n_row - 1) * n_sys; // 마지막 행
+//     for (j = 1; j < n_row - 1; ++j) {
+//         double* __restrict dj = D + (size_t)j * n_sys;
+//         const double* __restrict aj = A + (size_t)j * n_sys;
+//         const double* __restrict cj = C + (size_t)j * n_sys;
+
+//         #pragma omp simd 
+//         for (i = 0; i < n_sys; ++i) {
+//             dj[i] -= aj[i] * d0[i] + cj[i] * dn[i];
+//         }
+//     }
+//     final_solve_2 = MPI_Wtime();
+
+//     time_list.resize(7);
+//     time_list[0] = forward_2 - forward_1;
+//     time_list[1] = backward_2 - backward_1;
+//     time_list[2] = pack_2 - pack_1;
+//     time_list[3] = scatter_2 - scatter_1;
+//     time_list[4] = solve_2 - solve_1;
+//     time_list[5] = gather_2 - gather_1;
+//     time_list[6] = final_solve_2 - final_solve_1;
+
+//     // for (j = 1; j < n_row - 1; ++j) {
+//     //     for (i = 0; i < n_sys; ++i) {
+//     //         D[j * n_sys + i] -= A[j * n_sys + i] * D[0 * n_sys + i] + C[j * n_sys + i] * D[(n_row - 1) * n_sys + i];
+//     //     }
+//     // }
+// }
 
 void PaScaL_TDMA::PaScaL_TDMA_many_solve_cycle(ptdma_plan_many& plan,
                                 std::vector<double>& A, 

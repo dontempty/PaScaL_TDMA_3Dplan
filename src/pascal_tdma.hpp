@@ -29,6 +29,10 @@ public:
     void PaScaL_TDMA_single_solve(ptdma_plan_single& plan, 
                                   std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
                                   int n_row);
+
+    void PaScaL_TDMA_single_solve_debug(ptdma_plan_single& plan, 
+                                  std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
+                                  int n_row, std::vector<double>& time_list);
     
     void PaScaL_TDMA_single_solve_cycle(ptdma_plan_single& plan, 
                                 std::vector<double>& A, std::vector<double>& B, std::vector<double>& C, std::vector<double>& D,
@@ -46,14 +50,16 @@ public:
         // count_send: alltoall 에서 i 번째에 보내는 데이터 개수
         // displ_send: alltoall 에서 i 번째에 보내는 데이터 주소
         std::vector<MPI_Datatype> ddtype_Fs;
-        std::vector<int> count_send, displ_send;
+        std::vector<int> count_send;
+        std::vector<int> displ_send;
 
         // Recv. buffer related variables MPI_Ialltoallw 
         // ddtype_Bs: A, B, C, D 계수들을 받는 buffer
         // count_recv: alltoall 에서 i 번째로 부터 받는 데이터 개수
         // displ_recv: alltoall 에서 i 번째로 부터 받는 데이터 주소
         std::vector<MPI_Datatype> ddtype_Bs;
-        std::vector<int> count_recv, displ_recv;
+        std::vector<int> count_recv;
+        std::vector<int> displ_recv;
 
         // Coefficient arrays after reduction, a: lower, b: diagonal, c: upper, d: rhs.
         // The orginal dimension (m:n) is reduced to (m:2)
@@ -71,13 +77,19 @@ public:
     void PaScaL_TDMA_plan_many_destroy(ptdma_plan_many& plan, int nprocs);
 
     void PaScaL_TDMA_many_solve(ptdma_plan_many& plan,
-                                std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
+                                double* __restrict A,
+                                double* __restrict B,
+                                double* __restrict C,
+                                double* __restrict D,
                                 int n_sys, int n_row);
 
     void PaScaL_TDMA_many_solve_debug(ptdma_plan_many& plan,
-                                std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
-                                int n_sys, int n_row,
-                                std::vector<double>& time_list);
+                                        double* __restrict A,
+                                        double* __restrict B,
+                                        double* __restrict C,
+                                        double* __restrict D,
+                                        int n_sys, int n_row,
+                                        std::vector<double>& time_list);
 
     void PaScaL_TDMA_many_solve_cycle(ptdma_plan_many& plan,
                                     std::vector<double>& a, std::vector<double>& b, std::vector<double>& c, std::vector<double>& d,
