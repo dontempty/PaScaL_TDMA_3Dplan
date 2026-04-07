@@ -1,0 +1,18 @@
+# Build artifacts
+*.o
+*.d
+*.a
+*.out
+obj/
+lib/
+include/
+
+# Run outputs
+run/results/
+run/*.out
+run/*.err
+
+# Editor
+.vscode/
+*.swp
+*~
