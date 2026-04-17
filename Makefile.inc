@@ -4,8 +4,7 @@
 
 # ---------- nvhpc (default) ----------
 CXX       := mpicxx
-CXXFLAGS  := -O1 -std=c++17 -g -fPIC
-CXXFLAGS  += -tp=icelake
+CXXFLAGS := -O3 -std=c++17 -fPIC -tp=icelake -fast
 
 # ---------- g++ ----------
 # CXX       := mpicxx

@@ -50,7 +50,8 @@ int main(int argc, char** argv) {
 
     // 5) Solve
     SolveTheta solver(params, topo, sub);
-    solver.run(theta);
+    // solver.run(theta);
+    solver.profile(theta);
 
     // 6) Compute L2 error
     double local_error = 0.0;

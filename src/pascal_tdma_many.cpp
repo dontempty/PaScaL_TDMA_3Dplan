@@ -227,6 +227,127 @@ void PaScaLTDMAMany::solve(double* __restrict A, double* __restrict B,
 }
 
 // ============================================================================
+//  solve_cyclic() — like solve() but step 5 uses tdma_cyclic_many
+//  so the global reduced system is solved as a cyclic tridiagonal.
+// ============================================================================
+
+void PaScaLTDMAMany::solve_cyclic(double* __restrict A, double* __restrict B,
+                                  double* __restrict C, double* __restrict D,
+                                  int n_sys, int n_row) {
+    if (nprocs_ == 1) {
+        tdma_cyclic_many(A, B, C, D, n_sys, n_row);
+        return;
+    }
+
+    int i, j;
+    auto p = setup_ptrs(A, B, C, D, n_sys, n_row);
+
+    double* A_rd0 = A_rd_.data();
+    double* A_rd1 = A_rd_.data() + n_sys;
+    double* C_rd0 = C_rd_.data();
+    double* C_rd1 = C_rd_.data() + n_sys;
+    double* D_rd0 = D_rd_.data();
+    double* D_rd1 = D_rd_.data() + n_sys;
+
+    // 1) Forward Elimination
+    #pragma omp simd
+    for (i = 0; i < n_sys; ++i) {
+        double r0 = 1.0 / p.B0[i];
+        p.A0[i] *= r0; p.C0[i] *= r0; p.D0[i] *= r0;
+        double r1 = 1.0 / p.B1[i];
+        p.A1[i] *= r1; p.C1[i] *= r1; p.D1[i] *= r1;
+    }
+    for (j = 2; j < n_row; ++j) {
+        double*       Aj  = A + (std::size_t)j * n_sys;
+        double*       Bj  = B + (std::size_t)j * n_sys;
+        double*       Cj  = C + (std::size_t)j * n_sys;
+        double*       Dj  = D + (std::size_t)j * n_sys;
+        const double* Ajm = A + (std::size_t)(j - 1) * n_sys;
+        const double* Cjm = C + (std::size_t)(j - 1) * n_sys;
+        const double* Djm = D + (std::size_t)(j - 1) * n_sys;
+        #pragma omp simd
+        for (i = 0; i < n_sys; ++i) {
+            double inv = 1.0 / (Bj[i] - Aj[i] * Cjm[i]);
+            Dj[i] =  inv * (Dj[i] - Aj[i] * Djm[i]);
+            Cj[i] =  inv * Cj[i];
+            Aj[i] = -inv * Aj[i] * Ajm[i];
+        }
+    }
+
+    // 2) Backward Substitution
+    for (j = n_row - 3; j >= 1; --j) {
+        double*       Aj  = A + (std::size_t)j * n_sys;
+        double*       Cj  = C + (std::size_t)j * n_sys;
+        double*       Dj  = D + (std::size_t)j * n_sys;
+        const double* Ajp = A + (std::size_t)(j + 1) * n_sys;
+        const double* Cjp = C + (std::size_t)(j + 1) * n_sys;
+        const double* Djp = D + (std::size_t)(j + 1) * n_sys;
+        #pragma omp simd
+        for (i = 0; i < n_sys; ++i) {
+            Dj[i] -= Cj[i] * Djp[i];
+            Aj[i] -= Cj[i] * Ajp[i];
+            Cj[i] *= -Cjp[i];
+        }
+    }
+
+    // 3) Pack reduced system (boundary rows 0 and n_row-1)
+    #pragma omp simd
+    for (i = 0; i < n_sys; ++i) {
+        double r = 1.0 / (1.0 - p.A1[i] * p.C0[i]);
+        p.D0[i] =  r * (p.D0[i] - p.C0[i] * p.D1[i]);
+        p.A0[i] =  r * p.A0[i];
+        p.C0[i] = -r * p.C0[i] * p.C1[i];
+
+        A_rd0[i] = p.A0[i];  A_rd1[i] = p.AN[i];
+        C_rd0[i] = p.C0[i];  C_rd1[i] = p.CN[i];
+        D_rd0[i] = p.D0[i];  D_rd1[i] = p.DN[i];
+    }
+
+    // 4) MPI alltoall: transpose the reduced system
+    {
+        MPI_Request req[3];
+        MPI_Ialltoallw(A_rd_.data(), count_send_.data(), displ_send_.data(), ddtype_Fs_.data(),
+                       A_rt_.data(), count_recv_.data(), displ_recv_.data(), ddtype_Bs_.data(),
+                       comm_, &req[0]);
+        MPI_Ialltoallw(C_rd_.data(), count_send_.data(), displ_send_.data(), ddtype_Fs_.data(),
+                       C_rt_.data(), count_recv_.data(), displ_recv_.data(), ddtype_Bs_.data(),
+                       comm_, &req[1]);
+        MPI_Ialltoallw(D_rd_.data(), count_send_.data(), displ_send_.data(), ddtype_Fs_.data(),
+                       D_rt_.data(), count_recv_.data(), displ_recv_.data(), ddtype_Bs_.data(),
+                       comm_, &req[2]);
+        MPI_Waitall(3, req, MPI_STATUSES_IGNORE);
+    }
+
+    // 5) Solve the local reduced system — cyclic version
+    tdma_cyclic_many(A_rt_.data(), B_rt_.data(), C_rt_.data(), D_rt_.data(), n_sys_rt_, n_row_rt_);
+
+    // 6) Alltoall back: scatter solutions to owning ranks
+    {
+        MPI_Request req[1];
+        MPI_Ialltoallw(D_rt_.data(), count_recv_.data(), displ_recv_.data(), ddtype_Bs_.data(),
+                       D_rd_.data(), count_send_.data(), displ_send_.data(), ddtype_Fs_.data(),
+                       comm_, &req[0]);
+        MPI_Wait(&req[0], MPI_STATUS_IGNORE);
+    }
+
+    // 7) Final local solve
+    #pragma omp simd
+    for (i = 0; i < n_sys; ++i) {
+        p.D0[i] = D_rd0[i];
+        p.DN[i] = D_rd1[i];
+    }
+    for (j = 1; j < n_row - 1; ++j) {
+        double*       Dj = D + (std::size_t)j * n_sys;
+        const double* Aj = A + (std::size_t)j * n_sys;
+        const double* Cj = C + (std::size_t)j * n_sys;
+        #pragma omp simd
+        for (i = 0; i < n_sys; ++i) {
+            Dj[i] -= Aj[i] * p.D0[i] + Cj[i] * p.DN[i];
+        }
+    }
+}
+
+// ============================================================================
 //  solve_profile() — per-phase timing with MPI_Barrier (7 entries)
 // ============================================================================
 

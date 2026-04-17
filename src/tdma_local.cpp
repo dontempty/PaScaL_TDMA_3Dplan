@@ -104,3 +104,105 @@ void tdma_cyclic_single(std::vector<double>& a, std::vector<double>& b,
         d[i] += d[0] * e[i];
     }
 }
+
+void tdma_cyclic_many(double* __restrict A,
+                      double* __restrict B,
+                      double* __restrict C,
+                      double* __restrict D,
+                      int n_sys, int n_row) {
+
+    // Auxiliary array E tracks cyclic coupling; same layout [n_row × n_sys]
+    std::vector<double> Ev((std::size_t)n_row * n_sys, 0.0);
+    double* E = Ev.data();
+
+    double* A1   = A + (std::size_t)1 * n_sys;
+    double* CNm1 = C + (std::size_t)(n_row - 1) * n_sys;
+    double* E1   = E + (std::size_t)1 * n_sys;
+    double* ENm1 = E + (std::size_t)(n_row - 1) * n_sys;
+
+    // Initialize E[1] = -A[1],  E[N-1] = -C[N-1]
+    #pragma omp simd
+    for (int i = 0; i < n_sys; ++i) {
+        E1[i]   = -A1[i];
+        ENm1[i] = -CNm1[i];
+    }
+
+    // --- Preprocess row 1 ---
+    {
+        double* B1 = B + (std::size_t)1 * n_sys;
+        double* C1 = C + (std::size_t)1 * n_sys;
+        double* D1 = D + (std::size_t)1 * n_sys;
+        #pragma omp simd
+        for (int i = 0; i < n_sys; ++i) {
+            double inv_b = 1.0 / B1[i];
+            D1[i] *= inv_b;
+            E1[i] *= inv_b;
+            C1[i] *= inv_b;
+        }
+    }
+
+    // --- Forward Elimination rows 2..N-1 ---
+    for (int j = 2; j < n_row; ++j) {
+        double*       Aj  = A + (std::size_t)j * n_sys;
+        double*       Bj  = B + (std::size_t)j * n_sys;
+        double*       Cj  = C + (std::size_t)j * n_sys;
+        double*       Dj  = D + (std::size_t)j * n_sys;
+        double*       Ej  = E + (std::size_t)j * n_sys;
+        const double* Cjm = C + (std::size_t)(j - 1) * n_sys;
+        const double* Djm = D + (std::size_t)(j - 1) * n_sys;
+        const double* Ejm = E + (std::size_t)(j - 1) * n_sys;
+
+        #pragma omp simd
+        for (int i = 0; i < n_sys; ++i) {
+            double r = 1.0 / (Bj[i] - Aj[i] * Cjm[i]);
+            Dj[i] = r * (Dj[i] - Aj[i] * Djm[i]);
+            Ej[i] = r * (Ej[i] - Aj[i] * Ejm[i]);
+            Cj[i] = r * Cj[i];
+        }
+    }
+
+    // --- Backward Substitution rows N-2..1 ---
+    for (int j = n_row - 2; j >= 1; --j) {
+        double*       Cj  = C + (std::size_t)j * n_sys;
+        double*       Dj  = D + (std::size_t)j * n_sys;
+        double*       Ej  = E + (std::size_t)j * n_sys;
+        const double* Djp = D + (std::size_t)(j + 1) * n_sys;
+        const double* Ejp = E + (std::size_t)(j + 1) * n_sys;
+
+        #pragma omp simd
+        for (int i = 0; i < n_sys; ++i) {
+            Dj[i] -= Cj[i] * Djp[i];
+            Ej[i] -= Cj[i] * Ejp[i];
+        }
+    }
+
+    // --- Solve for D[0] using cyclic boundary ---
+    //   A[0]*x[N-1] + B[0]*x[0] + C[0]*x[1] = D[0]
+    //   x[j] = D[j] + x[0]*E[j]  for j=1..N-1
+    //   → x[0] = (D[0] - A[0]*D[N-1] - C[0]*D[1])
+    //           / (B[0] + A[0]*E[N-1] + C[0]*E[1])
+    {
+        double*       D0   = D;
+        const double* A0   = A;
+        const double* B0   = B;
+        const double* C0   = C;
+        const double* D1   = D + (std::size_t)1 * n_sys;
+        const double* DNm1 = D + (std::size_t)(n_row - 1) * n_sys;
+
+        #pragma omp simd
+        for (int i = 0; i < n_sys; ++i) {
+            D0[i] = (D0[i] - A0[i] * DNm1[i] - C0[i] * D1[i])
+                  / (B0[i] + A0[i] * ENm1[i] + C0[i] * E1[i]);
+        }
+    }
+
+    // --- Back-substitute D[0] into rows 1..N-1 ---
+    for (int j = 1; j < n_row; ++j) {
+        double*       Dj = D + (std::size_t)j * n_sys;
+        const double* Ej = E + (std::size_t)j * n_sys;
+        const double* D0 = D;
+        #pragma omp simd
+        for (int i = 0; i < n_sys; ++i)
+            Dj[i] += D0[i] * Ej[i];
+    }
+}

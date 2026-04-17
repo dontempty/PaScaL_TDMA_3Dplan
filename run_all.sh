@@ -3,7 +3,7 @@
 #SBATCH -p batch                 # 파티션 이름
 #SBATCH -w cpu06                 # 실행할 노드 이름
 #SBATCH --nodes=1                # 항상 1개의 노드만 사용
-#SBATCH --ntasks-per-node=32     # 루프에서 사용할 최대 프로세스 개수를 할당
+#SBATCH --ntasks-per-node=16     # 루프에서 사용할 최대 프로세스 개수를 할당
 #SBATCH -o results/%x_%j.out     # 표준 출력 파일
 #SBATCH -e results/%x_%j.err     # 표준 에러 파일
 #SBATCH --comment xxx
@@ -42,12 +42,12 @@ do
 
     # mpirun 명령어 실행
     # -np 플래그와 입력 파일 이름을 현재 루프의 $NP 값으로 설정
-    # mpirun -np $NP ./${BUILD_DIR}/a.out "$INPUT_FILE"
+    mpirun -np $NP ./${BUILD_DIR}/a.out "$INPUT_FILE"
     
-    srun -n $NP \
-     --ntasks-per-node=$NP \
-     ./${BUILD_DIR}/a.out "$INPUT_FILE"
-     # --cpu-bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
+    # srun -n $NP \
+    #  --ntasks-per-node=$NP \
+    #  ./${BUILD_DIR}/a.out "$INPUT_FILE"
+    #  # --cpu-bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
      
 
     # Order of accuracy

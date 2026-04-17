@@ -30,6 +30,12 @@ public:
                double* __restrict C, double* __restrict D,
                int n_sys, int n_row);
 
+    /// Same as solve() but for periodic (cyclic) tridiagonal systems.
+    /// Row 0 connects to row n_row-1 via A[0] and C[n_row-1].
+    void solve_cyclic(double* __restrict A, double* __restrict B,
+                      double* __restrict C, double* __restrict D,
+                      int n_sys, int n_row);
+
     // --- Profile: per-phase timing with MPI_Barrier (7 entries) ---
     void solve_profile(double* __restrict A, double* __restrict B,
                        double* __restrict C, double* __restrict D,

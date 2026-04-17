@@ -13,6 +13,7 @@ public:
                MPISubdomain& sub);
 
     void run(std::vector<double>& theta);
+    void profile(std::vector<double>& theta);
 
 private:
     const GlobalParams& params_;

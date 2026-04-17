@@ -1,0 +1,70 @@
+# =============================================
+# Channel Flow Solver — Input Parameter File
+# =============================================
+
+# --- Grid parameters ---
+NX          256          # streamwise cell count
+NY          256          # spanwise cell count
+NZ          256          # wall-normal cell count
+LX          25.13274     # domain length x (= 8*pi)
+LY           9.42477     # domain length y (= 3*pi)
+LZ           2.0         # domain length z (= 2h, h=1)
+
+# --- z-direction stretching ---
+STRETCH_BETA  1.4        # tanh inflation parameter (0 = uniform)
+
+# --- MPI decomposition ---
+NP            8          # number of MPI processes (z-slab decomposition)
+
+# =============================================
+# Non-dimensionalization (MPM-STD 방식)
+# =============================================
+# NON_DIMENSIONAL 1 (기본값): bulk-velocity 무차원화 (MPM-STD 동일)
+#   nu   = 1/RE
+#   dpdx = -3*nu/h^2  (자동 계산 → U_b=1, Umx=1.5 보장)
+#   Re_tau는 파생값: u_tau = sqrt(|dpdx|*h), Re_tau = u_tau*h/nu
+#
+# NON_DIMENSIONAL 0: dimensional 모드
+#   nu = MU/RHO,  dpdx = DPDX (직접 지정)
+# =============================================
+
+NON_DIMENSIONAL  1       # 1 = non-dim (MPM-STD 방식), 0 = dimensional
+
+# --- Non-dimensional mode ---
+RE          2857.0       # 벌크 Reynolds 수 (Re_b = U_b*h/nu, MPM-STD와 동일)
+                         # dpdx는 자동 계산 (-3*nu/h^2)  →  Umx=1.5, U_b=1
+                         # DPDX 를 명시하면 override (비표준)
+
+# --- Dimensional mode (NON_DIMENSIONAL=0 일 때만 사용) ---
+# MU          3.500e-4   # dynamic viscosity [Pa·s]
+# RHO         1.0        # fluid density     [kg/m³]
+# DPDX        -1.0       # 압력 구배 [Pa/m]
+
+# =============================================
+# 초기조건 (MPM-STD cuda_momentum_init_channel 동일)
+#   U = Umx*(1-(z/h-1)^2) + vper*Umx*rand1
+#   V = vper*Umx*rand2
+#   W = vper*Umx*rand3
+#   (volume-weighted 평균 제거 적용)
+# =============================================
+PERTURB_AMP  0.05        # vper (MPM-STD vper=0.3, 여기서는 0.05 권장)
+
+# --- Time integration ---
+DT          0.5          # initial (maximum) time step
+CFL_MAX     0.95         # CFL upper bound
+NSTEP       20000
+
+# --- Forcing ---
+FORCING_TYPE  CONST_FLOWRATE  # CONST_DPDX | CONST_FLOWRATE
+
+# --- Monitoring and output ---
+NMONITOR    10          # monitoring print interval (steps)
+NSTAT_START 10000       # step at which statistics accumulation begins
+NSTAT       1           # statistics accumulation interval (steps)
+NOUT_STATS  5000        # statistics file write interval (>= NSTAT)
+NOUT        20000       # field output interval (steps)
+
+# --- Output control ---
+OUT_STATS   1
+OUT_FIELD   1
+OUTDIR  results/case_Re180(P)
