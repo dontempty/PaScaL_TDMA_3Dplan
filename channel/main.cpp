@@ -382,11 +382,9 @@ int main(int argc, char** argv) {
         // --- Statistics: write file every nout_stats steps from nstat_start ---
         if (p.out_stats && step >= p.nstat_start
                         && (step - p.nstat_start) % p.nout_stats == 0) {
-            if (myrank == 0) {
-                char fname[512];
-                snprintf(fname, sizeof(fname), "%s/stats/stats_%08d.dat", p.outdir, step);
-                stats.write(fname, step);
-            }
+            char fname[512];
+            snprintf(fname, sizeof(fname), "%s/stats/stats_%08d.dat", p.outdir, step);
+            stats.write(fname, step);  // all ranks must call (MPI_Allreduce inside)
         }
 
         // --- Field output ---
