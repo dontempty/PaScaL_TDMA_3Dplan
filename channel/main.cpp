@@ -42,6 +42,7 @@ static double compute_dt(const std::vector<double>& u,
     const int nzl = slab.nz_local;
     double inv_dt_local = 0.0;
 
+    // advection
     for (int kl = 1; kl <= nzl; ++kl) {
         int kg = slab.kstart + kl - 1;
         double dz_min = g.dz[kg];  // cell height at this level
@@ -56,17 +57,8 @@ static double compute_dt(const std::vector<double>& u,
             }
     }
 
-    // Diffusion stability limit
-    double dz_min_global;
-    double dz_min_local = *std::min_element(g.dz.begin(), g.dz.end());
-    MPI_Allreduce(&dz_min_local, &dz_min_global, 1, MPI_DOUBLE, MPI_MIN, slab.comm);
-    double inv_dt_diff = 2.0 * p.nu * (1.0 / (p.dx * p.dx)
-                                      + 1.0 / (p.dy * p.dy)
-                                      + 1.0 / (dz_min_global * dz_min_global));
-
-    double inv_dt_max_local = std::max(inv_dt_local, inv_dt_diff);
     double inv_dt_max;
-    MPI_Allreduce(&inv_dt_max_local, &inv_dt_max, 1, MPI_DOUBLE, MPI_MAX, slab.comm);
+    MPI_Allreduce(&inv_dt_local, &inv_dt_max, 1, MPI_DOUBLE, MPI_MAX, slab.comm);
 
     double dt_cfl = (inv_dt_max > 1.0e-15) ? (p.cfl_max / inv_dt_max) : p.dt;
     return std::min(dt_cfl, p.dt);  // never exceed input dt

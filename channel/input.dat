@@ -6,8 +6,8 @@
 NX          256          # streamwise cell count
 NY          256          # spanwise cell count
 NZ          256          # wall-normal cell count
-LX          25.13274     # domain length x (= 8*pi)
-LY           9.42477     # domain length y (= 3*pi)
+LX          12.5663     # domain length x (= 4*pi)
+LY           6.2831     # domain length y (= 2*pi)
 LZ           2.0         # domain length z (= 2h, h=1)
 
 # --- z-direction stretching ---
