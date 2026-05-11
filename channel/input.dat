@@ -52,7 +52,7 @@ PERTURB_AMP  0.05        # vper (MPM-STD vper=0.3, 여기서는 0.05 권장)
 # --- Time integration ---
 DT          0.5          # initial (maximum) time step
 CFL_MAX     0.95         # CFL upper bound
-NSTEP       20000
+NSTEP       1000
 
 # --- Forcing ---
 FORCING_TYPE  CONST_FLOWRATE  # CONST_DPDX | CONST_FLOWRATE

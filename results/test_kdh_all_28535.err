@@ -1,0 +1,5 @@
+/var/spool/slurm/d/job28535/slurm_script: line 53: Order: command not found
+/var/spool/slurm/d/job28535/slurm_script: line 53: Order: command not found
+/var/spool/slurm/d/job28535/slurm_script: line 53: Order: command not found
+/var/spool/slurm/d/job28535/slurm_script: line 53: Order: command not found
+slurmstepd: error: *** JOB 28535 ON cpu02 CANCELLED AT 2026-05-11T15:48:02 ***

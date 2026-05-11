@@ -47,6 +47,8 @@ public:
 
     void set_dt(double dt) { dt_ = dt; }
 
+    double time_z() const { return time_z_; }
+
 private:
     const SimParams& p_;
     const Grid&      g_;
@@ -65,6 +67,8 @@ private:
     // --- X sweep: PaScaLTDMAMany with MPI_COMM_SELF (fully local) ---
     // n_sys = Ny*nzl,  n_row = Nx  (periodic)
     PaScaLTDMAMany* ptdma_x_;
+
+    double time_z_ = 0.0;
 
     // --- Coefficient and RHS buffers ---
     // Z buffers: [nzl * Nx*Ny]

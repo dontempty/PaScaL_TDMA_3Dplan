@@ -53,6 +53,8 @@ public:
     // CONST_FLOWRATE: computed inside step(). CONST_DPDX: always 0.
     double last_U_b() const { return last_U_b_; }
 
+    double time_z() const { return diff_solver_->time_z(); }
+
 private:
     const SimParams&  p_;
     const Grid&       g_;

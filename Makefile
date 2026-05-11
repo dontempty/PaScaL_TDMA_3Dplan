@@ -17,7 +17,7 @@ channel:
 all:
 	mkdir -p $(BUILDDIR)/obj $(BUILDDIR)/lib $(BUILDDIR)/include $(BUILDDIR)/bin
 	cd src; make all BUILDDIR=../$(BUILDDIR)
-	cd channel; make all BUILDDIR=../$(BUILDDIR)
+	cd heat; make all BUILDDIR=../$(BUILDDIR)
 
 clean:
 	cd src; make clean BUILDDIR=../$(BUILDDIR)

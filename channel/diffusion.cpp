@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <mpi.h>
 
 // Periodic index wrap
 static inline int pbc(int i, int N) { return (i + N) % N; }
@@ -177,8 +178,12 @@ void ADIDiffusion::adi_solve(
     }
 
     // Solve all Nx*Ny z-tridiagonal systems simultaneously
-    ptdma_z_->solve(Az_.data(), Bz_.data(), Cz_.data(), Dz_.data(),
-                    plane, nzl);
+    {
+        double t0 = MPI_Wtime();
+        ptdma_z_->solve(Az_.data(), Bz_.data(), Cz_.data(), Dz_.data(),
+                        plane, nzl);
+        time_z_ += MPI_Wtime() - t0;
+    }
 
     // Unpack result back into rhs (intermediate q)
     for (int kl = 1; kl <= nzl; ++kl) {

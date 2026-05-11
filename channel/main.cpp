@@ -398,6 +398,21 @@ int main(int argc, char** argv) {
         printf("\nSimulation complete.  Final stats written to %s/stats/.\n", p.outdir);
     }
 
+    // --- Z-sweep timing report ---
+    {
+        double t_local = solver.time_z();
+        double t_max, t_min, t_sum;
+        MPI_Reduce(&t_local, &t_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&t_local, &t_min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&t_local, &t_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (myrank == 0) {
+            printf("\n[Timing] Z-sweep (ptdma_z->solve) over %d steps:\n", p.nstep);
+            printf("  max=%.4f s  min=%.4f s  avg=%.4f s  (per step: avg=%.6f s)\n",
+                   t_max, t_min, t_sum / nprocs,
+                   (t_sum / nprocs) / p.nstep);
+        }
+    }
+
     } // ---- End scoped solver block ----
 
     MPI_Finalize();
