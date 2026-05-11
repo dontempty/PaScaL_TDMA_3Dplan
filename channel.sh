@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -J channel_flow
 #SBATCH -p batch
-#SBATCH -w cpu01
+#SBATCH -w cpu02
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=16
+#SBATCH --ntasks-per-node=8
 #SBATCH -o results/%x_%j.out
 #SBATCH -e results/%x_%j.err
 
