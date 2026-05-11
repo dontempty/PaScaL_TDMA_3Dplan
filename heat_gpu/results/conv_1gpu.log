@@ -1,0 +1,19 @@
+=========== Nx=64 (1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 2
+[nx] = 64 | [ny] = 64 | [nz] = 64
+[rho] = 0.4
+Global L2 error = 0.000760892
+=========== Nx=128 (1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 8
+[nx] = 128 | [ny] = 128 | [nz] = 128
+[rho] = 0.4
+Global L2 error = 0.000186243
+=========== Nx=256 (1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 32
+[nx] = 256 | [ny] = 256 | [nz] = 256
+[rho] = 0.4
+Global L2 error = 4.64592e-05
+=========== Nx=512 (1 GPU) ===========
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 28340.0 ON gpu01 CANCELLED AT 2026-05-06T16:16:19 DUE TO TIME LIMIT ***
+srun: error: gpu01: task 0: Terminated

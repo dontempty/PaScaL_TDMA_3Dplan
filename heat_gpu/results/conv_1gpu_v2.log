@@ -1,0 +1,16 @@
+srun: job 28361 queued and waiting for resources
+srun: job 28361 has been allocated resources
+=========== Nx=64 (1 GPU, GPU-resident) ===========
+Global L2 error = 0.000760892
+elapsed=1.55 s
+=========== Nx=128 (1 GPU, GPU-resident) ===========
+Global L2 error = 0.000186243
+elapsed=1.60 s
+=========== Nx=256 (1 GPU, GPU-resident) ===========
+Global L2 error = 4.64592e-05
+elapsed=4.94 s
+srun: job 28420 queued and waiting for resources
+srun: job 28420 has been allocated resources
+=========== Nx=512 (1 GPU, GPU-resident) ===========
+Global L2 error = 1.16241e-05
+elapsed=23.57 s

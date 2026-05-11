@@ -1,0 +1,22 @@
+srun: job 28429 queued and waiting for resources
+srun: job 28429 has been allocated resources
+=========== Nx=64 (GPU-native, 1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 2
+[rho] = 0.4
+Global L2 error = 0.000760892
+wall=1.91 s
+=========== Nx=128 (GPU-native, 1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 8
+[rho] = 0.4
+Global L2 error = 0.000186243
+wall=1.41 s
+=========== Nx=256 (GPU-native, 1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 32
+[rho] = 0.4
+Global L2 error = 4.64592e-05
+wall=4.85 s
+=========== Nx=512 (GPU-native, 1 GPU) ===========
+[Tmax] = 0.0078125 | [max_iter] = 128
+[rho] = 0.4
+Global L2 error = 1.16241e-05
+wall=24.56 s
