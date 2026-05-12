@@ -432,6 +432,12 @@ void SolveTheta::profile(std::vector<double>& theta) {
     std::size_t full_n  = (std::size_t)nx_full * ny_full * nz_full;
     std::size_t inner_n = (std::size_t)ix * iy * iz;
 
+    // Pre-allocate the 12 contiguous ghost-cell send/recv buffers on device.
+    // Replaces the old DDT-on-device-pointer path that triggered an
+    // OpenMPI fallback (per-cell cudaMemcpy or whole-array D2H) and gave
+    // ~100-300x slowdown vs the contiguous variant.
+    sub_.allocGhostBufsDevice();
+
     double* d_theta = nullptr; CUDA_CHECK(cudaMalloc(&d_theta, sizeof(double) * full_n));
     double* d_rhs   = nullptr; CUDA_CHECK(cudaMalloc(&d_rhs,   sizeof(double) * inner_n));
     double* d_A     = nullptr; CUDA_CHECK(cudaMalloc(&d_A,     sizeof(double) * inner_n));
@@ -502,7 +508,11 @@ void SolveTheta::profile(std::vector<double>& theta) {
         build_lhs_z_kernel<<<g3, b3>>>(d_A, d_B, d_C, d_D, d_rhs,
                                        d_dmz, d_z_lb, d_z_rb, ix, iy, iz, dt);
         solver_z.solve(d_A, d_B, d_C, d_D, ix * iy, iz);
-        copy_z_to_rhs<<<grid_lin, block_lin>>>(d_rhs, d_D, inner_n);
+        {
+            const int block_lin = 256;
+            const int grid_lin  = (int)((inner_n + block_lin - 1) / block_lin);
+            copy_z_to_rhs<<<grid_lin, block_lin>>>(d_rhs, d_D, inner_n);
+        }
 
         // Y boundary correction + sweep
         y_boundary_kernel<<<g_xz, b2>>>(d_rhs,
@@ -558,4 +568,5 @@ void SolveTheta::profile(std::vector<double>& theta) {
     safe_free((void*&)d_th_xL); safe_free((void*&)d_th_xR);
     safe_free((void*&)d_th_yL); safe_free((void*&)d_th_yR);
     safe_free((void*&)d_th_zL); safe_free((void*&)d_th_zR);
+    sub_.freeGhostBufsDevice();
 }

@@ -17,15 +17,27 @@ public:
     void clean();
 
     void makeGhostcellDDType();
+
+    /// Host-side ghost-cell exchange (used only during initialization).
+    /// Operates on host `theta` via the derived-datatype subarray pattern.
     void ghostcellUpdate(std::vector<double>& theta,
                          const CartComm1D& cx, const CartComm1D& cy,
                          const CartComm1D& cz, const GlobalParams& params);
-    /// Device-pointer overload for CUDA-aware MPI ghost-cell exchange.
-    /// `d_theta` must point to the same row-major [(nx+1)(ny+1)(nz+1)] layout
-    /// as the host version uses; reuses the same derived datatypes.
+
+    /// Device-side ghost-cell exchange (called every timestep).
+    /// Uses **pack → contiguous-buffer MPI → unpack** kernels so MPI sees
+    /// only contiguous device pointers (CUDA-aware MPI fast path); matches
+    /// the PaScaL_TDMA_F `ghostcell_update_cuda` pattern.
+    /// Call `allocGhostBufsDevice` once after `make()` before invoking this.
     void ghostcellUpdateDevice(double* d_theta,
                                const CartComm1D& cx, const CartComm1D& cy,
                                const CartComm1D& cz);
+
+    /// Allocate contiguous device send/recv buffers for the 6 faces of theta.
+    /// Idempotent — safe to call more than once. Implementation in a `.cu`.
+    void allocGhostBufsDevice();
+    /// Free the device buffers; called from `clean()`.
+    void freeGhostBufsDevice();
 
     void mesh(const GlobalParams& params,
               int rankx, int ranky, int rankz,
@@ -52,6 +64,18 @@ public:
     std::vector<int> theta_x_left_index, theta_x_right_index;
     std::vector<int> theta_y_left_index, theta_y_right_index;
     std::vector<int> theta_z_left_index, theta_z_right_index;
+
+    // --- Device contiguous ghost-cell buffers (one pair per axis-direction) ---
+    // Layout: each face packed as row-major. Size of each:
+    //   x faces: (ny_sub+1) * (nz_sub+1)
+    //   y faces: (nx_sub+1) * (nz_sub+1)
+    //   z faces: (nx_sub+1) * (ny_sub+1)
+    double* d_sbuf_x0 = nullptr;  double* d_sbuf_x1 = nullptr;
+    double* d_rbuf_x0 = nullptr;  double* d_rbuf_x1 = nullptr;
+    double* d_sbuf_y0 = nullptr;  double* d_sbuf_y1 = nullptr;
+    double* d_rbuf_y0 = nullptr;  double* d_rbuf_y1 = nullptr;
+    double* d_sbuf_z0 = nullptr;  double* d_sbuf_z1 = nullptr;
+    double* d_rbuf_z0 = nullptr;  double* d_rbuf_z1 = nullptr;
 
 private:
     MPI_Datatype ddtype_sendto_x_right,  ddtype_recvfrom_x_left;

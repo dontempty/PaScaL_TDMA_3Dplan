@@ -90,29 +90,30 @@ void MPISubdomain::makeGhostcellDDType() {
 void MPISubdomain::ghostcellUpdate(std::vector<double>& theta,
                                    const CartComm1D& cx, const CartComm1D& cy,
                                    const CartComm1D& cz, const GlobalParams&) {
-    ghostcellUpdateDevice(theta.data(), cx, cy, cz);
-}
-
-void MPISubdomain::ghostcellUpdateDevice(double* d_theta,
-                                         const CartComm1D& cx,
-                                         const CartComm1D& cy,
-                                         const CartComm1D& cz) {
+    // Host-side path — uses derived subarray datatypes on a host buffer
+    // (fast on host: MPI packs the strided face into a contiguous send buf
+    //  via memcpy). Called once after initialization to fill ghosts of the
+    //  initial theta on rank 0 before the H2D copy.
+    double* h_theta = theta.data();
     MPI_Request reqs[12];
     int r = 0;
-    MPI_Isend(d_theta, 1, ddtype_sendto_x_right,   cx.east_rank, 111, cx.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_x_left,  cx.west_rank, 111, cx.comm, &reqs[r++]);
-    MPI_Isend(d_theta, 1, ddtype_sendto_x_left,    cx.west_rank, 222, cx.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_x_right, cx.east_rank, 222, cx.comm, &reqs[r++]);
-    MPI_Isend(d_theta, 1, ddtype_sendto_y_right,   cy.east_rank, 333, cy.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_y_left,  cy.west_rank, 333, cy.comm, &reqs[r++]);
-    MPI_Isend(d_theta, 1, ddtype_sendto_y_left,    cy.west_rank, 444, cy.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_y_right, cy.east_rank, 444, cy.comm, &reqs[r++]);
-    MPI_Isend(d_theta, 1, ddtype_sendto_z_right,   cz.east_rank, 555, cz.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_z_left,  cz.west_rank, 555, cz.comm, &reqs[r++]);
-    MPI_Isend(d_theta, 1, ddtype_sendto_z_left,    cz.west_rank, 666, cz.comm, &reqs[r++]);
-    MPI_Irecv(d_theta, 1, ddtype_recvfrom_z_right, cz.east_rank, 666, cz.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_x_right,   cx.east_rank, 111, cx.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_x_left,  cx.west_rank, 111, cx.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_x_left,    cx.west_rank, 222, cx.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_x_right, cx.east_rank, 222, cx.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_y_right,   cy.east_rank, 333, cy.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_y_left,  cy.west_rank, 333, cy.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_y_left,    cy.west_rank, 444, cy.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_y_right, cy.east_rank, 444, cy.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_z_right,   cz.east_rank, 555, cz.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_z_left,  cz.west_rank, 555, cz.comm, &reqs[r++]);
+    MPI_Isend(h_theta, 1, ddtype_sendto_z_left,    cz.west_rank, 666, cz.comm, &reqs[r++]);
+    MPI_Irecv(h_theta, 1, ddtype_recvfrom_z_right, cz.east_rank, 666, cz.comm, &reqs[r++]);
     MPI_Waitall(r, reqs, MPI_STATUSES_IGNORE);
 }
+
+// `ghostcellUpdateDevice`, `allocGhostBufsDevice`, `freeGhostBufsDevice`
+// are defined in `ghostcell_cuda.cu` to keep CUDA out of this translation unit.
 
 void MPISubdomain::indices(const GlobalParams&,
                            int rankx, int npx, int ranky, int npy, int rankz, int npz) {

@@ -12,6 +12,12 @@ run/results/
 run/*.out
 run/*.err
 
+# results 
+/results
+
+# log
+/log
+
 # Editor
 .vscode/
 *.swp
