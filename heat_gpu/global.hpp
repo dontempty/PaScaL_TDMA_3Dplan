@@ -26,6 +26,13 @@ public:
 
     // Run mode: "order" or "strong"
     std::string option;
+
+    // CUDA thread-block dimensions for the PaScaL_TDMA solver kernels
+    // (modified_thomas, tdma_many, update_solution).  Mirrors the Fortran
+    // reference's `thread_in_x_pascal` / `thread_in_y_pascal` namelist.
+    // Default: 128 × 1 (single warp-block).
+    int thread_in_x_pascal = 128;
+    int thread_in_y_pascal = 1;
 };
 
 #endif // GLOBAL_PARAMS_HPP

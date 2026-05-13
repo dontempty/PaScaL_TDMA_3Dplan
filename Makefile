@@ -30,4 +30,6 @@ clean:
 	cd heat; make clean BUILDDIR=../$(BUILDDIR)
 	cd heat_gpu; make clean BUILDDIR=../$(BUILDDIR) || true
 	cd channel; make clean BUILDDIR=../$(BUILDDIR)
-	rm -rf $(BUILDDIR)
+	# Do not rm -rf $(BUILDDIR) — subdir cleans already remove the build
+	# artifacts that matter; keeping the directory itself avoids fragile
+	# behavior where downstream commands expect $(BUILDDIR) to exist.

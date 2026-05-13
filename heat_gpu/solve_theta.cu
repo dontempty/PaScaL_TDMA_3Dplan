@@ -1,28 +1,18 @@
-// GPU-native implementation of SolveTheta::profile.
-//
-// Mirrors the structure of the Fortran reference solve_theta_plan_many_cuda
-// in TDMA/PaScaL_TDMA_F/examples/solve_theta.f90:
-//   - All field/coefficient arrays live on the device for the entire run
-//   - One H2D for theta at start, one D2H at end
-//   - Each time step: build_RHS → boundary corrections → (build_LHS + batched
-//     TDMA solve + permute back) per direction → update theta → ghost exchange
-//   - The TDMA solver is called with device pointers (PaScaLTDMAManyCUDA::solve)
-//
-// Layout convention for the interior cube (ix*iy*iz where ix=nx-2 etc.):
-//   d_rhs[ci] with ci = kk*iy*ix + jj*ix + ii,  ii=i-1, jj=j-1, kk=k-1
-//   This is row-major (i,j,k) with i fastest, k slowest — matches the
-//   full-grid indexing used by idx_ijk(i,j,k,nx,ny) = k*ny*nx + j*nx + i.
+// GPU heat-equation ADI solver. Mirrors PaScaL_TDMA_F/examples/solve_theta.f90.
+// Layout: d_rhs[ci] with ci = kk*iy*ix + jj*ix + ii (ii fastest).
 
 #include "solve_theta.hpp"
 #include "../src/pascal_tdma_many_cuda.hpp"
 #include "stencil_coeffs.hpp"
 #include "index.hpp"
+#include "timing_csv.hpp"
 
 #include <cuda_runtime.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #define CUDA_CHECK(expr)                                                       \
@@ -41,7 +31,6 @@ namespace {
 
 constexpr double D_PI = 3.14159265358979323846;
 
-// Device-side stencil computation, mirrors stencil_coeffs.hpp
 __device__ inline void d_stencil(double dt, double dd, int lb, int rb,
                                  double& a, double& b, double& c) {
     double base = dt / (2.0 * dd * dd);
@@ -50,14 +39,10 @@ __device__ inline void d_stencil(double dt, double dd, int lb, int rb,
     c = base * ( 1.0 + (1.0/3.0) * lb + (5.0/3.0) * rb);
 }
 
-// Full-grid 3D indexer: theta[(k * ny + j) * nx + i]
 __device__ inline std::size_t idx_full_d(int i, int j, int k, int nx, int ny) {
     return ((std::size_t)k * ny + (std::size_t)j) * nx + (std::size_t)i;
 }
 
-// =============================================================================
-//  RHS computation — interior cells (i,j,k) in [1,nx-1) × [1,ny-1) × [1,nz-1)
-// =============================================================================
 __global__ void rhs_kernel(double* __restrict__ d_rhs,
                            const double* __restrict__ d_theta,
                            const double* __restrict__ dmx,
@@ -103,9 +88,6 @@ __global__ void rhs_kernel(double* __restrict__ d_rhs,
     d_rhs[ci] = rhs;
 }
 
-// =============================================================================
-//  Z-boundary correction
-// =============================================================================
 __global__ void z_boundary_kernel(double* __restrict__ d_rhs,
                                   const double* __restrict__ theta_z_left,
                                   const double* __restrict__ theta_z_right,
@@ -167,9 +149,6 @@ __global__ void z_boundary_kernel(double* __restrict__ d_rhs,
     }
 }
 
-// =============================================================================
-//  Y-boundary correction
-// =============================================================================
 __global__ void y_boundary_kernel(double* __restrict__ d_rhs,
                                   const double* __restrict__ theta_y_left,
                                   const double* __restrict__ theta_y_right,
@@ -212,9 +191,6 @@ __global__ void y_boundary_kernel(double* __restrict__ d_rhs,
     }
 }
 
-// =============================================================================
-//  X-boundary correction
-// =============================================================================
 __global__ void x_boundary_kernel(double* __restrict__ d_rhs,
                                   const double* __restrict__ theta_x_left,
                                   const double* __restrict__ theta_x_right,
@@ -245,11 +221,7 @@ __global__ void x_boundary_kernel(double* __restrict__ d_rhs,
     }
 }
 
-// =============================================================================
-//  Build LHS for Z-direction sweep.
-//  Layout: d_X[ ((kk * iy) + jj) * ix + ii ]  — same as d_rhs.
-//  Treated by TDMA as [n_row=iz × n_sys=ix*iy], row-major.
-// =============================================================================
+// Build Z-LHS. Layout: d_X[(kk*iy + jj)*ix + ii], ii fastest (same as d_rhs).
 __global__ void build_lhs_z_kernel(double* __restrict__ d_A,
                                    double* __restrict__ d_B,
                                    double* __restrict__ d_C,
@@ -282,11 +254,7 @@ __global__ void copy_z_to_rhs(double* __restrict__ d_rhs,
     if (idx < n) d_rhs[idx] = d_D[idx];
 }
 
-// =============================================================================
-//  Build LHS for Y-direction sweep.
-//  Layout: d_X[ ((jj * iz) + kk) * ix + ii ] — j becomes the row dimension.
-//  Treated by TDMA as [n_row=iy × n_sys=iz*ix], row-major.
-// =============================================================================
+// Build Y-LHS. Layout: d_X[(jj*iz + kk)*ix + ii], ii fastest; j is the row axis.
 __global__ void build_lhs_y_kernel(double* __restrict__ d_A,
                                    double* __restrict__ d_B,
                                    double* __restrict__ d_C,
@@ -325,11 +293,10 @@ __global__ void copy_y_to_rhs(double* __restrict__ d_rhs,
     d_rhs[off_rhs] = d_D[off_y];
 }
 
-// =============================================================================
-//  Build LHS for X-direction sweep.
-//  Layout: d_X[ ((ii * iz) + kk) * iy + jj ] — i becomes the row dimension.
-//  Treated by TDMA as [n_row=ix × n_sys=iz*iy], row-major.
-// =============================================================================
+// Build X-LHS. Layout: d_X[(ii*iz + kk)*iy + jj], jj fastest; i is the row axis.
+// d_rhs has ii fastest, d_X has jj fastest — stage d_rhs through a shared
+// tile so reads coalesce on ii and writes coalesce on jj. +1 padding avoids
+// 32-way bank conflicts on the transposed tile read.
 __global__ void build_lhs_x_kernel(double* __restrict__ d_A,
                                    double* __restrict__ d_B,
                                    double* __restrict__ d_C,
@@ -339,23 +306,44 @@ __global__ void build_lhs_x_kernel(double* __restrict__ d_A,
                                    const int* __restrict__ x_lb,
                                    const int* __restrict__ x_rb,
                                    int ix, int iy, int iz, double dt) {
-    int ii = blockIdx.x * blockDim.x + threadIdx.x;
-    int jj = blockIdx.y * blockDim.y + threadIdx.y;
-    int kk = blockIdx.z * blockDim.z + threadIdx.z;
-    if (ii >= ix || jj >= iy || kk >= iz) return;
-    int i = ii + 1;
+    constexpr int TILE = 32;
+    __shared__ double tile[TILE][TILE + 1];
 
-    double sa, sb, sc;  d_stencil(dt, dmx[i], x_lb[i], x_rb[i], sa, sb, sc);
+    int ii_b = blockIdx.x * TILE;
+    int jj_b = blockIdx.y * TILE;
+    int kk   = blockIdx.z;
+    if (kk >= iz) return;
 
-    std::size_t off_x   = ((std::size_t)ii * iz + kk) * iy + jj;
-    std::size_t off_rhs = ((std::size_t)kk * iy + jj) * ix + ii;
-    d_A[off_x] = -sa;
-    d_B[off_x] = 1.0 - sb;
-    d_C[off_x] = -sc;
-    d_D[off_x] = d_rhs[off_rhs];
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    // Load d_rhs into shared tile, coalesced in ii (= tx).
+    {
+        int ii_g = ii_b + tx;
+        int jj_g = jj_b + ty;
+        if (ii_g < ix && jj_g < iy) {
+            tile[ty][tx] = d_rhs[((std::size_t)kk * iy + jj_g) * ix + ii_g];
+        }
+    }
+    __syncthreads();
+
+    // Write d_X with tx re-mapped to jj for coalesced writes.
+    {
+        int jj_g = jj_b + tx;
+        int ii_g = ii_b + ty;
+        if (ii_g < ix && jj_g < iy) {
+            int i = ii_g + 1;
+            double sa, sb, sc;
+            d_stencil(dt, dmx[i], x_lb[i], x_rb[i], sa, sb, sc);
+            std::size_t off_x = ((std::size_t)ii_g * iz + kk) * iy + jj_g;
+            d_A[off_x] = -sa;
+            d_B[off_x] = 1.0 - sb;
+            d_C[off_x] = -sc;
+            d_D[off_x] = tile[tx][ty];
+        }
+    }
 }
 
-// Final update: theta(i,j,k) = D_x(i,k,j).
 __global__ void update_theta_kernel(double* __restrict__ d_theta,
                                     const double* __restrict__ d_D,
                                     int ix, int iy, int iz,
@@ -369,9 +357,6 @@ __global__ void update_theta_kernel(double* __restrict__ d_theta,
     d_theta[idx_full_d(i, j, k, nx, ny)] = d_D[off_x];
 }
 
-// =============================================================================
-//  Helpers to upload host vectors / push int arrays
-// =============================================================================
 template <class T>
 T* alloc_and_copy(const std::vector<T>& src) {
     T* p = nullptr;
@@ -394,19 +379,16 @@ inline dim3 grid2(int nx, int ny, dim3 block) {
 
 } // namespace
 
-// ===========================================================================
-//  SolveTheta::profile  — GPU-native time-step loop
-// ===========================================================================
 SolveTheta::SolveTheta(const GlobalParams& params,
                        const MPITopology& topo,
                        MPISubdomain& sub)
     : params_(params), topo_(topo), sub_(sub) {}
 
 void SolveTheta::profile(std::vector<double>& theta) {
-    int nx_full = sub_.nx_sub + 1;     // matches host nx1
+    int nx_full = sub_.nx_sub + 1;
     int ny_full = sub_.ny_sub + 1;
     int nz_full = sub_.nz_sub + 1;
-    int ix = nx_full - 2;              // interior count
+    int ix = nx_full - 2;
     int iy = ny_full - 2;
     int iz = nz_full - 2;
     int max_iter = params_.Nt;
@@ -426,16 +408,9 @@ void SolveTheta::profile(std::vector<double>& theta) {
         std::cout << "[rho] = " << beta / (1.0 + 2.0 * beta) << "\n";
     }
 
-    // -------------------------------------------------------------------
-    //  Persistent device buffers
-    // -------------------------------------------------------------------
     std::size_t full_n  = (std::size_t)nx_full * ny_full * nz_full;
     std::size_t inner_n = (std::size_t)ix * iy * iz;
 
-    // Pre-allocate the 12 contiguous ghost-cell send/recv buffers on device.
-    // Replaces the old DDT-on-device-pointer path that triggered an
-    // OpenMPI fallback (per-cell cudaMemcpy or whole-array D2H) and gave
-    // ~100-300x slowdown vs the contiguous variant.
     sub_.allocGhostBufsDevice();
 
     double* d_theta = nullptr; CUDA_CHECK(cudaMalloc(&d_theta, sizeof(double) * full_n));
@@ -445,7 +420,6 @@ void SolveTheta::profile(std::vector<double>& theta) {
     double* d_C     = nullptr; CUDA_CHECK(cudaMalloc(&d_C,     sizeof(double) * inner_n));
     double* d_D     = nullptr; CUDA_CHECK(cudaMalloc(&d_D,     sizeof(double) * inner_n));
 
-    // Mesh / boundary arrays — one-time upload
     double* d_dmx     = alloc_and_copy(sub_.dmx_sub);
     double* d_dmy     = alloc_and_copy(sub_.dmy_sub);
     double* d_dmz     = alloc_and_copy(sub_.dmz_sub);
@@ -465,37 +439,60 @@ void SolveTheta::profile(std::vector<double>& theta) {
     double* d_th_zL   = alloc_and_copy(sub_.theta_z_left_sub);
     double* d_th_zR   = alloc_and_copy(sub_.theta_z_right_sub);
 
-    // theta H2D — once
     CUDA_CHECK(cudaMemcpy(d_theta, theta.data(), sizeof(double) * full_n,
                           cudaMemcpyHostToDevice));
 
-    // -------------------------------------------------------------------
-    //  Solver plans (one per direction).  Lifetime spans all time steps.
-    // -------------------------------------------------------------------
-    PaScaLTDMAManyCUDA solver_z(ix * iy, cz.myrank, cz.nprocs, cz.comm);
-    PaScaLTDMAManyCUDA solver_y(ix * iz, cy.myrank, cy.nprocs, cy.comm);
-    PaScaLTDMAManyCUDA solver_x(iy * iz, cx.myrank, cx.nprocs, cx.comm);
+    const int bx = params_.thread_in_x_pascal;
+    const int by = params_.thread_in_y_pascal;
+    PaScaLTDMAManyCUDA solver_z(ix * iy, cz.myrank, cz.nprocs, cz.comm, bx, by);
+    PaScaLTDMAManyCUDA solver_y(ix * iz, cy.myrank, cy.nprocs, cy.comm, bx, by);
+    PaScaLTDMAManyCUDA solver_x(iy * iz, cx.myrank, cx.nprocs, cx.comm, bx, by);
+    if (my_rank == 0) {
+        std::cout << "[pascal_tdma block] " << bx << " x " << by
+                  << " (total " << bx * by << ")\n";
+    }
 
-    // -------------------------------------------------------------------
-    //  Launch configs
-    // -------------------------------------------------------------------
-    dim3 b3(8, 8, 4);
+    // 3D kernels use (8,4,4); PaScaL TDMA uses (bx,by) from PARA_INPUT;
+    // build_lhs_x uses a 32x32 tile transpose to coalesce both the d_rhs
+    // read (ii-fastest) and the d_X write (jj-fastest).
+    dim3 b3(8, 4, 4);
     dim3 g3 = grid3(ix, iy, iz, b3);
+
+    constexpr int LHS_X_TILE = 32;
+    dim3 b3_lhs_x(LHS_X_TILE, LHS_X_TILE, 1);
+    dim3 g3_lhs_x((ix + LHS_X_TILE - 1) / LHS_X_TILE,
+                  (iy + LHS_X_TILE - 1) / LHS_X_TILE,
+                  iz);
     dim3 b2(16, 16, 1);
     dim3 g_xy = grid2(ix, iy, b2);
     dim3 g_xz = grid2(ix, iz, b2);
     dim3 g_yz = grid2(iy, iz, b2);
 
-    // -------------------------------------------------------------------
-    //  Time-step loop
-    // -------------------------------------------------------------------
+    const std::vector<std::string> event_names =
+        {"rhs", "solve_z", "solve_y", "solve_x", "etc", "comm"};
+    const int n_events = (int)event_names.size();
+    timing_csv::timing_init(n_events, max_iter - 1, MPI_COMM_WORLD);
+    std::vector<double> local_times(n_events, 0.0);
+
+    // ev[0]→ev[1]: comm  ev[1]→ev[2]: rhs  ev[2..5]→: solve_z/y/x.
+    cudaEvent_t ev[6];
+    for (int i = 0; i < 6; ++i) {
+        CUDA_CHECK(cudaEventCreateWithFlags(&ev[i], cudaEventBlockingSync));
+    }
+
     for (int t_step = 0; t_step < max_iter; ++t_step) {
-        // RHS
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        cudaEventRecord(ev[0]);
+        sub_.ghostcellUpdateDevice(d_theta, cx, cy, cz);
+        cudaEventRecord(ev[1]);
+
         rhs_kernel<<<g3, b3>>>(d_rhs, d_theta,
                                d_dmx, d_dmy, d_dmz,
                                d_x_lb, d_x_rb, d_y_lb, d_y_rb, d_z_lb, d_z_rb,
                                d_x_sub, d_y_sub, d_z_sub,
                                nx_full, ny_full, nz_full, dt);
+        cudaEventRecord(ev[2]);
 
         z_boundary_kernel<<<g_xy, b2>>>(d_rhs,
                                         d_th_zL, d_th_zR,
@@ -503,8 +500,6 @@ void SolveTheta::profile(std::vector<double>& theta) {
                                         d_dmx, d_dmy, d_dmz,
                                         d_x_lb, d_x_rb, d_y_lb, d_y_rb,
                                         nx_full, ny_full, nz_full, dt);
-
-        // Z sweep
         build_lhs_z_kernel<<<g3, b3>>>(d_A, d_B, d_C, d_D, d_rhs,
                                        d_dmz, d_z_lb, d_z_rb, ix, iy, iz, dt);
         solver_z.solve(d_A, d_B, d_C, d_D, ix * iy, iz);
@@ -513,8 +508,8 @@ void SolveTheta::profile(std::vector<double>& theta) {
             const int grid_lin  = (int)((inner_n + block_lin - 1) / block_lin);
             copy_z_to_rhs<<<grid_lin, block_lin>>>(d_rhs, d_D, inner_n);
         }
+        cudaEventRecord(ev[3]);
 
-        // Y boundary correction + sweep
         y_boundary_kernel<<<g_xz, b2>>>(d_rhs,
                                         d_th_yL, d_th_yR,
                                         d_y_lb, d_y_rb,
@@ -525,38 +520,63 @@ void SolveTheta::profile(std::vector<double>& theta) {
                                        d_dmy, d_y_lb, d_y_rb, ix, iy, iz, dt);
         solver_y.solve(d_A, d_B, d_C, d_D, ix * iz, iy);
         copy_y_to_rhs<<<g3, b3>>>(d_rhs, d_D, ix, iy, iz);
+        cudaEventRecord(ev[4]);
 
-        // X boundary correction + sweep
         x_boundary_kernel<<<g_yz, b2>>>(d_rhs,
                                         d_th_xL, d_th_xR,
                                         d_x_lb, d_x_rb,
                                         d_dmx,
                                         nx_full, ny_full, nz_full, dt);
-        build_lhs_x_kernel<<<g3, b3>>>(d_A, d_B, d_C, d_D, d_rhs,
-                                       d_dmx, d_x_lb, d_x_rb, ix, iy, iz, dt);
+        build_lhs_x_kernel<<<g3_lhs_x, b3_lhs_x>>>(d_A, d_B, d_C, d_D, d_rhs,
+                                                   d_dmx, d_x_lb, d_x_rb, ix, iy, iz, dt);
         solver_x.solve(d_A, d_B, d_C, d_D, iy * iz, ix);
-
-        // Update theta from x-solution; theta layout (i,j,k) ← D layout (i,k,j)
         update_theta_kernel<<<g3, b3>>>(d_theta, d_D, ix, iy, iz, nx_full, ny_full);
+        cudaEventRecord(ev[5]);
 
-        // Ghost-cell exchange — only does work when a neighbor exists.
-        // CUDA-aware MPI uses the host-side derived datatypes against d_theta.
-        if (cx.nprocs > 1 || cy.nprocs > 1 || cz.nprocs > 1) {
-            CUDA_CHECK(cudaDeviceSynchronize());
-            sub_.ghostcellUpdateDevice(d_theta, cx, cy, cz);
+        CUDA_CHECK(cudaEventSynchronize(ev[5]));
+
+        float ms = 0.0f;
+        cudaEventElapsedTime(&ms, ev[0], ev[1]);  local_times[5] = ms * 1.0e-3;
+        cudaEventElapsedTime(&ms, ev[1], ev[2]);  local_times[0] = ms * 1.0e-3;
+        cudaEventElapsedTime(&ms, ev[2], ev[3]);  local_times[1] = ms * 1.0e-3;
+        cudaEventElapsedTime(&ms, ev[3], ev[4]);  local_times[2] = ms * 1.0e-3;
+        cudaEventElapsedTime(&ms, ev[4], ev[5]);  local_times[3] = ms * 1.0e-3;
+        local_times[4] = 0.0;
+
+        if (t_step >= 1) {
+            timing_csv::timing_record(t_step, local_times, MPI_COMM_WORLD);
         }
     }
 
-    // -------------------------------------------------------------------
-    //  D2H once
-    // -------------------------------------------------------------------
+    for (int i = 0; i < 6; ++i) cudaEventDestroy(ev[i]);
+
+    {
+        char meta[256];
+        std::snprintf(meta, sizeof(meta),
+                      "grid=%dx%dx%d, np=%d (%d,%d,%d), dt=%10.3E, Tmax=%d, solver_kind=pascal",
+                      params_.nx, params_.ny, params_.nz,
+                      cx.nprocs * cy.nprocs * cz.nprocs,
+                      params_.np_dim[0], params_.np_dim[1], params_.np_dim[2],
+                      dt, max_iter);
+
+        char fn[256];
+        const char* env_path = std::getenv("TIMING_CSV");
+        if (env_path && env_path[0] != '\0') {
+            std::snprintf(fn, sizeof(fn), "%s", env_path);
+        } else {
+            std::snprintf(fn, sizeof(fn), "results/timing_%d_%d%d%d.csv",
+                          params_.nx,
+                          params_.np_dim[0], params_.np_dim[1], params_.np_dim[2]);
+        }
+
+        timing_csv::timing_save_csv(fn, event_names, meta, MPI_COMM_WORLD);
+        timing_csv::timing_cleanup();
+    }
+
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(theta.data(), d_theta, sizeof(double) * full_n,
                           cudaMemcpyDeviceToHost));
 
-    // -------------------------------------------------------------------
-    //  Free
-    // -------------------------------------------------------------------
     auto safe_free = [](void*& p) { if (p) { cudaFree(p); p = nullptr; } };
     safe_free((void*&)d_theta); safe_free((void*&)d_rhs);
     safe_free((void*&)d_A); safe_free((void*&)d_B); safe_free((void*&)d_C); safe_free((void*&)d_D);

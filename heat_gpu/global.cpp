@@ -48,6 +48,12 @@ void GlobalParams::load(const std::string& filename) {
     dt           = std::stod(param.at("dt"));
     option       = param.at("option");
 
+    // Optional PaScaL TDMA thread-block dims (defaults: 128 × 1)
+    if (auto it = param.find("thread_in_x_pascal"); it != param.end())
+        thread_in_x_pascal = std::stoi(it->second);
+    if (auto it = param.find("thread_in_y_pascal"); it != param.end())
+        thread_in_y_pascal = std::stoi(it->second);
+
     // Grid dimensions (add 1 for node-centered)
     nx++; ny++; nz++;
     nxm = nx - 1; nym = ny - 1; nzm = nz - 1;
@@ -61,6 +67,10 @@ void GlobalParams::load(const std::string& filename) {
     dy = ly / (ny - 1);
     dz = lz / (nz - 1);
 
+    // Save input values for strong option (timing benchmarks use input directly)
+    const double Tmax_in = Tmax;
+    const double dt_in   = dt;
+
     // Time step from rho
     dt = rho / (1.0 - 2.0 * rho) * (2.0 * dx * dx);
 
@@ -71,9 +81,11 @@ void GlobalParams::load(const std::string& filename) {
     if (option == "order") {
         Nt = static_cast<int>(std::round(Tmax / dt));
     } else if (option == "strong") {
-        Nt = 3;
+        // Use input Tmax/dt directly (rho ignored for timing benchmarks)
+        Tmax = Tmax_in;
+        dt   = dt_in;
+        Nt   = static_cast<int>(std::round(Tmax / dt));
     } else {
         Nt = static_cast<int>(std::round(Tmax / dt));
-        // 몰라
     }
 }

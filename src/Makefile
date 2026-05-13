@@ -23,16 +23,23 @@ endif
 
 all: $(LIBDIR)/$(LIB) inc
 
-$(LIBDIR)/$(LIB): $(OBJS)
+$(LIBDIR)/$(LIB): $(OBJS) | $(LIBDIR)
 	@echo "Creating static library: $@"
-	ar qc $@ $^
+	rm -f $@
+	ar rcs $@ $^
 
-inc:
+inc: | $(INCDIR)
 	@echo "Copying header files to $(INCDIR)/"
 	cp *.hpp $(INCDIR)/
 ifeq ($(USE_CUDA),1)
 	cp *.cuh $(INCDIR)/
 endif
+
+$(LIBDIR):
+	mkdir -p $(LIBDIR)
+
+$(INCDIR):
+	mkdir -p $(INCDIR)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	@echo "Compiling $< -> $@"
